@@ -1,0 +1,17 @@
+build/
+DerivedData/
+*.xcuserstate
+xcuserdata/
+.DS_Store
+.bundle/
+vendor/bundle/
+.env
+.env.*
+*.p8
+*.p12
+*.mobileprovision
+*.cer
+*.key
+fastlane/report.xml
+fastlane/README.md
+fastlane/Preview.html

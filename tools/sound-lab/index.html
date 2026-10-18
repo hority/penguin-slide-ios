@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penguin Sound Lab</title>
+<style>
+  :root { --bg: #f4f7fa; --card: #fff; --ink: #1d2a44; --sub: #5b6b84; --line: #dbe3ec; --accent: #2f7de1; --wave: #7fb3f0; }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) { --bg: #10151e; --card: #1a2230; --ink: #e8eef6; --sub: #9fb0c6; --line: #2a3546; --accent: #6aa8ff; --wave: #3d6aa6; }
+  }
+  :root[data-theme="dark"] { --bg: #10151e; --card: #1a2230; --ink: #e8eef6; --sub: #9fb0c6; --line: #2a3546; --accent: #6aa8ff; --wave: #3d6aa6; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 system-ui, -apple-system, "Hiragino Sans", sans-serif; }
+  main { max-width: 880px; margin: 0 auto; padding: 20px 16px 48px; }
+  h1 { font-size: 22px; margin: 0 0 4px; }
+  h2 { font-size: 16px; margin: 28px 0 10px; }
+  p.note { color: var(--sub); margin: 0 0 8px; }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
+  .card .row { display: flex; align-items: center; gap: 8px; }
+  .card .name { flex: 1; font-weight: 600; }
+  .card .key { color: var(--sub); font: 12px ui-monospace, monospace; }
+  canvas { width: 100%; height: 44px; display: block; margin-top: 6px; }
+  button { font: inherit; border: 0; border-radius: 999px; padding: 6px 14px; background: var(--accent); color: #fff; cursor: pointer; }
+  button.ghost { background: transparent; color: var(--accent); border: 1px solid var(--line); }
+  a.dl { color: var(--accent); font-size: 13px; text-decoration: none; }
+  .bar { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  label { color: var(--sub); }
+</style>
+</head>
+<body>
+<main>
+  <h1>Penguin Sound Lab</h1>
+  <p class="note">ペンギンすべりだいの効果音とBGMを作って試す、開発用のページ（アプリには出ない）。音の中身は <code>sounds.js</code>。
+    ここで決めた音は <code>ci/render-sounds.cjs</code> でWAVに書き出し、<code>HelloFlight/Sounds/</code> に入る。</p>
+
+  <h2>流れで聞く（アプリと同じ順・音量）</h2>
+  <div class="bar">
+    <button data-flow="correct">せいかいの流れ</button>
+    <button data-flow="funny">ふしぎ音入りの流れ</button>
+    <button data-flow="wrong">まちがいの流れ</button>
+    <label><input type="checkbox" id="withMusic" checked> BGMを重ねる</label>
+  </div>
+
+  <h2>BGM</h2>
+  <div class="bar">
+    <button id="music">BGMを再生</button>
+    <label>音量 <input type="range" id="musicVolume" min="0" max="1" step="0.01" value="0.1"> <span id="musicVolumeText">0.10</span>（アプリ：0.10、読み上げ中0.03）</label>
+    <a class="dl" id="musicDownload" download="music.wav">WAV保存</a>
+  </div>
+
+  <h2>効果音</h2>
+  <div class="grid" id="effects"></div>
+  <h2>ふしぎ音（たまに鳴る。上がる・弾む音だけ）</h2>
+  <div class="grid" id="funny"></div>
+</main>
+<script src="sounds.js"></script>
+<script>
+  const lab = window.SoundLab;
+  let ctx;
+  const cache = {};
+  function audio() {
+    ctx = ctx || new AudioContext({ sampleRate: lab.SR });
+    if (ctx.state === "suspended") ctx.resume();
+    return ctx;
+  }
+  async function buffer(name) {
+    if (!cache[name]) {
+      const samples = await lab.render(name);
+      const b = new AudioBuffer({ length: samples.length, numberOfChannels: 1, sampleRate: lab.SR });
+      b.copyToChannel(samples, 0);
+      cache[name] = { buffer: b, samples };
+    }
+    return cache[name];
+  }
+  async function play(name, volume = 1, at = 0, loop = false) {
+    const c = audio();
+    const { buffer: b } = await buffer(name);
+    const source = c.createBufferSource();
+    source.buffer = b;
+    source.loop = loop;
+    const gain = c.createGain();
+    gain.gain.value = volume;
+    source.connect(gain).connect(c.destination);
+    source.start(c.currentTime + at);
+    return { source, gain };
+  }
+  function draw(canvas, samples) {
+    const g = canvas.getContext("2d");
+    const w = (canvas.width = canvas.clientWidth * devicePixelRatio), h = (canvas.height = canvas.clientHeight * devicePixelRatio);
+    g.fillStyle = getComputedStyle(document.body).getPropertyValue("--wave");
+    const step = samples.length / w;
+    for (let x = 0; x < w; x++) {
+      let peak = 0;
+      for (let i = Math.floor(x * step); i < Math.floor((x + 1) * step); i++) peak = Math.max(peak, Math.abs(samples[i]));
+      g.fillRect(x, h / 2 - peak * h / 2, 1, Math.max(1, peak * h));
+    }
+  }
+  function link(a, name, samples) {
+    a.href = URL.createObjectURL(new Blob([lab.wav(samples)], { type: "audio/wav" }));
+    a.download = name + ".wav";
+  }
+  async function card(name) {
+    const sound = lab.SOUNDS[name];
+    const el = document.createElement("div");
+    el.className = "card";
+    el.innerHTML = `<div class="row"><span class="name">${sound.label}</span><button>▶</button></div>
+      <canvas></canvas><div class="row"><span class="key">${name} · ${sound.dur.toFixed(2)}s</span><span style="flex:1"></span><a class="dl">WAV保存</a></div>`;
+    document.getElementById(sound.funny ? "funny" : "effects").append(el);
+    el.querySelector("button").onclick = () => play(name);
+    const { samples } = await buffer(name);
+    draw(el.querySelector("canvas"), samples);
+    link(el.querySelector("a"), name, samples);
+  }
+  Object.keys(lab.SOUNDS).forEach(card);
+
+  let music;
+  const volume = document.getElementById("musicVolume");
+  volume.oninput = () => {
+    document.getElementById("musicVolumeText").textContent = Number(volume.value).toFixed(2);
+    if (music) music.gain.gain.value = volume.value;
+  };
+  async function toggleMusic(force) {
+    const on = force ?? !music;
+    if (music && !on) { music.source.stop(); music = null; }
+    if (!music && on) music = await play("music", Number(volume.value), 0, true);
+    document.getElementById("music").textContent = music ? "BGMを止める" : "BGMを再生";
+  }
+  document.getElementById("music").onclick = () => toggleMusic();
+  buffer("music").then(({ samples }) => link(document.getElementById("musicDownload"), "music", samples));
+
+  // アプリの流れ：氷をえらぶ → すべる → とぶ → 着地 → 結果。
+  const FLOWS = {
+    correct: [["pi", 0], ["slide", 0.3], ["jump", 1.4], ["land", 2.2], ["correct", 2.25], ["sparkle", 2.25, 0.6]],
+    funny: [["pi", 0], ["slide", 0.3], ["whistle", 0.3, 0.9], ["jump", 1.4], ["boing", 1.4, 0.9], ["land", 2.2], ["correct", 2.25], ["sparkle", 2.25, 0.6]],
+    wrong: [["pi", 0], ["slide", 0.3], ["jump", 1.4], ["land", 2.2], ["wrong", 2.25, 0.9], ["splash", 2.7]],
+  };
+  document.querySelectorAll("[data-flow]").forEach((b) => b.onclick = async () => {
+    if (document.getElementById("withMusic").checked) await toggleMusic(true);
+    for (const [name, at, v] of FLOWS[b.dataset.flow]) play(name, v ?? 1, at);
+  });
+</script>
+</body>
+</html>
