@@ -7,12 +7,20 @@ enum PenguinTextures {
         UIColor(red: CGFloat((hex >> 16) & 0xff) / 255, green: CGFloat((hex >> 8) & 0xff) / 255, blue: CGFloat(hex & 0xff) / 255, alpha: alpha)
     }
 
+    /// RGBの画像に描く（左上が原点、UIKitの描画もそのまま使える）。
+    /// UIGraphicsImageRenderer は灰色だけの絵を1チャンネルの画像にすることがあり、そのテクスチャはシミュレータのMetalで落ちるので使わない。
     static func image(_ width: Int, _ height: Int, opaque: Bool = true, _ draw: (CGContext, CGRect) -> Void) -> UIImage {
-        let format = UIGraphicsImageRendererFormat()
-        format.scale = 1
-        format.opaque = opaque
         let rect = CGRect(x: 0, y: 0, width: width, height: height)
-        return UIGraphicsImageRenderer(size: rect.size, format: format).image { draw($0.cgContext, rect) }
+        let alpha: CGImageAlphaInfo = opaque ? .noneSkipLast : .premultipliedLast
+        guard let space = CGColorSpace(name: CGColorSpace.sRGB),
+              let cg = CGContext(data: nil, width: width, height: height, bitsPerComponent: 8, bytesPerRow: 0, space: space,
+                                 bitmapInfo: alpha.rawValue) else { return UIImage() }
+        cg.translateBy(x: 0, y: CGFloat(height))
+        cg.scaleBy(x: 1, y: -1)
+        UIGraphicsPushContext(cg)
+        draw(cg, rect)
+        UIGraphicsPopContext()
+        return cg.makeImage().map { UIImage(cgImage: $0) } ?? UIImage()
     }
 
     /// 明度から法線マップを作る（bumpMap 相当）。
