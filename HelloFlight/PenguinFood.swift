@@ -89,7 +89,10 @@ final class PenguinCountLabel {
 final class PenguinPantry {
     /// 置き場所（島の面の高さ）。岩とすべり台を避けた平らな所の中央。
     static let spot = SIMD3<Float>(0.4, 0.6, -2.3)
-    static let size: Float = 0.65
+    /// 置いた好物の高さ。キャラ（約0.7m）と同じくらいにする。
+    static let height: Float = 0.7
+    /// 好物ごとの縦横比に合わせた大きさ（いちばん長い辺）。横長の魚が広がりすぎないよう1mまで。
+    private var size: Float { min(1, Self.height / (2 * PenguinFoodModel.halfHeight(food))) }
 
     let root = SCNNode()
     private var food: PenguinFood
@@ -103,7 +106,7 @@ final class PenguinPantry {
 
     init(food: PenguinFood) {
         self.food = food
-        label.node.simdPosition = Self.spot + SIMD3(0.5, 0.5, 0.15)
+        label.node.simdPosition = Self.spot + SIMD3(0.55, Self.height + 0.15, 0.2)
         root.addChildNode(label.node)
         setFood(food)
     }
@@ -111,7 +114,7 @@ final class PenguinPantry {
     func setFood(_ food: PenguinFood) {
         self.food = food
         item.removeFromParentNode()
-        item = PenguinFoodModel.node(food, size: Self.size)
+        item = PenguinFoodModel.node(food, size: size)
         item.simdPosition = position
         root.addChildNode(item)
         for i in flights.indices {
@@ -123,7 +126,7 @@ final class PenguinPantry {
     }
 
     /// 大きな好物の中心。
-    var position: SIMD3<Float> { Self.spot + SIMD3(0, PenguinFoodModel.halfHeight(food) * Self.size, 0) }
+    var position: SIMD3<Float> { Self.spot + SIMD3(0, PenguinFoodModel.halfHeight(food) * size, 0) }
 
     /// 1つ増やす：from から飛んできて、着いたら数が増える。
     func add(from: SIMD3<Float>) {
@@ -169,7 +172,7 @@ final class PenguinPantry {
         // 増えたときに弾み、ふだんはゆっくり左右に揺れる。
         bounce += dt
         let squash = 1 + 0.18 * exp(-bounce * 6) * sin(bounce * 20)
-        item.simdScale = SIMD3(Self.size / squash.squareRoot(), Self.size * squash, Self.size / squash.squareRoot())
+        item.simdScale = SIMD3(size / squash.squareRoot(), size * squash, size / squash.squareRoot())
         item.simdEulerAngles = SIMD3(0, sin(time * 0.8) * 0.3, 0)
     }
 
