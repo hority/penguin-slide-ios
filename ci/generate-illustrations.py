@@ -17,6 +17,8 @@ SUBJECTS = {
  "melon":"cantaloupe melon","goat":"goat","dog":"puppy dog","egg":"white egg","fish":"blue fish","grapes":"bunch of purple grapes",
  "hat":"top hat","juice":"juice box with straw","kite":"diamond kite with tail","nose":"cartoon nose","penguin":"penguin",
  "queen":"queen with crown", "unicorn":"white baby unicorn with pastel rainbow mane and golden horn","sun":"smiling sun","tiger":"tiger","umbrella":"umbrella","violin":"violin","yoyo":"yo-yo toy",
+ "finger":"hand pointing up with the index finger extended, other fingers folded, light skin, white cartoon glove-like cuff",
+ "slide":"playground slide with a light blue chute, a small ladder and snowy top, side view",
 }
 STYLE = ("A single cute {s}, children's picture-book sticker illustration for toddlers, simple rounded shapes, "
          "bold dark navy outline, bright saturated flat colors with soft shading, centered, filling most of the frame, "

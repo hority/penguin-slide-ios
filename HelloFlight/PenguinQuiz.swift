@@ -75,16 +75,17 @@ enum PenguinQuiz {
         ("U", "Umbrella", "umbrella"), ("V", "Violin", "violin"), ("W", "Whale", "whale"), ("Y", "Yo-yo", "yoyo"), ("Z", "Zebra", "zebra"),
     ]
 
-    static func make(_ mode: PenguinMode, stars: Int, avoiding previous: String?) -> PenguinQuestion {
+    static func make(_ mode: PenguinMode, stars: Int, food: PenguinFood, avoiding previous: String?) -> PenguinQuestion {
         switch mode {
-        case .math: return math(stars: stars, avoiding: previous)
+        case .math: return math(stars: stars, food: food, avoiding: previous)
         case .hiragana: return letters(hiragana, pool: stars < 6 ? 10 : hiragana.count, english: false, avoiding: previous)
         case .katakana: return letters(katakana, pool: stars < 6 ? 10 : katakana.count, english: false, avoiding: previous)
         case .alphabet: return letters(alphabet, pool: stars < 6 ? 8 : alphabet.count, english: true, avoiding: previous)
         }
     }
 
-    private static func math(stars: Int, avoiding previous: String?) -> PenguinQuestion {
+    /// 数えるのも、たし算も、いま遊んでいるキャラの好物。
+    private static func math(stars: Int, food: PenguinFood, avoiding previous: String?) -> PenguinQuestion {
         let maximum = stars < 4 ? 3 : (stars < 10 ? 5 : 9)
         let addition = stars >= 6 && Double.random(in: 0...1) < 0.4
         var answer = 0, a = 0, b = 0
@@ -104,16 +105,16 @@ enum PenguinQuiz {
         let dots = stars < 10 ? choices : [0, 0, 0]
         if addition {
             return PenguinQuestion(
-                big: "", illustration: "fish", counts: [a, b], prompt: "\(a) ＋ \(b) は？",
+                big: "", illustration: food.asset, counts: [a, b], prompt: "\(a) ＋ \(b) は？",
                 choices: choices.map(String.init), answer: choices.firstIndex(of: answer) ?? 0, dots: dots,
-                ask: [.ja("\(a)ひきと、\(b)ひき。あわせて、なんびき かな？")],
+                ask: [.ja("\(a)\(food.counter)と、\(b)\(food.counter)。あわせて、\(food.howMany) かな？")],
                 praise: [.ja("せいかい！ あわせて \(answer)！")],
                 hint: [.ja("あれれ？ \(answer) は こっちだよ")])
         }
         return PenguinQuestion(
-            big: "", illustration: "fish", counts: [answer], prompt: "おさかな なんびき？",
+            big: "", illustration: food.asset, counts: [answer], prompt: "\(food.name) \(food.howMany)？",
             choices: choices.map(String.init), answer: choices.firstIndex(of: answer) ?? 0, dots: dots,
-            ask: [.ja("おさかな、なんびき いるかな？")],
+            ask: [.ja("\(food.name)、\(food.howMany) \(food.counter == "ひき" ? "いる" : "ある")かな？")],
             praise: [.ja("せいかい！ \(answer)！")],
             hint: [.ja("あれれ？ \(answer) は こっちだよ")])
     }

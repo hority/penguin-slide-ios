@@ -5,6 +5,7 @@ This private staging snapshot preserves all game runtime assets. Public redistri
 - `Fonts/BIZUDPGothic-Bold.ttf`: BIZ UDPGothic, SIL Open Font License 1.1. The included notice is retained in `FontLicenses.txt`. The font bytes match the upstream Google Fonts repository version used by the original app.
 - `Illustrations/*.png`: the repository contains an image-generation script for these game illustrations and title art. Generation provenance alone is not a completed redistribution-rights review.
 - `Sounds/*.wav`: the sound-lab scripts define procedural sound effects and music. These are the original bundled WAV files, not newly regenerated output.
+- `Models/Bluefish.bin`, `Pumpkin.bin`, `Sausage.bin`, `Lollipop.bin` and their textures, and `Illustrations/bluefish.png`, `pumpkin.png`, `sausage.png`, `lollipop.png`: the owner's favorite-food asset pack (geometry generated with Tripo Studio P2.0 from the owner's illustrations, textures made in Blender), simplified with gltfpack and converted by `ci/convert-food.py`. `Illustrations/finger.png` and `slide.png` come from `ci/generate-illustrations.py`. Confirm Tripo's output terms before publication.
 - `Models/*` and `Stage/*`: runtime mesh and texture files preserved unchanged. Editable design masters are excluded from this source-only snapshot. Confirm the original generation/source terms and redistribution rights before publication.
 - `Assets.xcassets/AppIcon.appiconset/AppIcon.png`: retained unchanged; confirm its provenance before publication.
 

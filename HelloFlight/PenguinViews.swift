@@ -71,6 +71,11 @@ struct PenguinRootView: View {
                 PenguinTitleView(game: game, showSettings: $showSettings)
             } else {
                 PenguinPlayHUD(game: game)
+                if let step = hud.tutorial, step != .back {
+                    PenguinTutorialView(step: step, food: hud.character.food, from: hud.tutorialFrom, to: hud.tutorialTo)
+                        .ignoresSafeArea()
+                        .allowsHitTesting(false)
+                }
             }
         }
         .statusBarHidden()
@@ -160,23 +165,24 @@ private struct PenguinPlayHUD: View {
     var body: some View {
         let hud = game.hud
         // 操作は上部だけに置く（画面下端はホームインジケータ、下半分は浮き氷をタップする場所）。
+        // 集めた数は島の置き場に好物として並ぶので、数字の表示は置かない。
         HStack(alignment: .top, spacing: 10) {
-            // 左の列：星の数と、その下に大きなホームボタン。
-            VStack(spacing: 6) {
-                HStack(spacing: 2) {
-                    PenguinArt.view("star", size: 20)
-                    Text("\(hud.stars)")
-                        .font(.penguin(18).monospacedDigit())
-                        .foregroundStyle(Color.penguinInk)
-                        .contentTransition(.numericText())
-                        .minimumScaleFactor(0.6)
-                        .lineLimit(1)
+            if hud.feeding {
+                // 顔のアップから戻る：すべりだいの絵のボタン。
+                Button { game.endFeeding() } label: {
+                    PenguinArt.view("slide", size: 62)
                 }
-                .padding(.horizontal, 6)
-                .frame(width: 64, height: 32)
-                .background(Capsule().fill(Color.penguinAmber))
-                .accessibilityElement(children: .combine)
-                .accessibilityLabel("ほし \(hud.stars)こ")
+                .buttonStyle(PenguinRoundButton(color: .penguinMint, size: 84))
+                .accessibilityLabel("すべりだいに もどる")
+                .overlay(alignment: .bottomTrailing) {
+                    if hud.tutorial == .back {
+                        PenguinTutorialView(step: .back, food: hud.character.food, from: CGPoint(x: 42, y: 42), to: nil)
+                            .frame(width: 84, height: 84)
+                            .allowsHitTesting(false)
+                    }
+                }
+                .transition(.scale.combined(with: .opacity))
+            } else {
                 Button { game.goHome() } label: {
                     Image(systemName: "house.fill").font(.system(size: 26, weight: .bold))
                 }
@@ -186,7 +192,7 @@ private struct PenguinPlayHUD: View {
 
             // 問題が変わると、新しいカードが右からスライドインし、前のカードは左へ抜ける。
             ZStack {
-                if let question = hud.question {
+                if let question = hud.question, !hud.feeding {
                     // 大きさは問題によらず固定。右の丸ボタンで問題をもう一度読む。
                     VStack(spacing: 2) {
                         HStack(spacing: 10) {
@@ -229,7 +235,7 @@ private struct PenguinPlayHUD: View {
         .padding(.horizontal, 12)
         .padding(.top, 4)
         .frame(maxHeight: .infinity, alignment: .top)
-        .animation(.spring(duration: 0.35), value: hud.stars)
+        .animation(.spring(duration: 0.35), value: hud.feeding)
     }
 }
 
@@ -316,7 +322,7 @@ private struct PenguinPopView: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            if pop.star { PenguinArt.view("star", size: pop.big ? 52 : 42) }
+            if let icon = pop.icon { PenguinArt.view(icon, size: pop.big ? 52 : 42) }
             Text(pop.text)
         }
             .font(.penguin(pop.big ? 44 : 36))
@@ -330,6 +336,76 @@ private struct PenguinPopView: View {
             .onAppear {
                 withAnimation(.easeOut(duration: 1.4)) { rise = true }
             }
+    }
+}
+
+/// はじめての説明：指のイラスト（ci/generate-illustrations.py の finger）でタップや運び方を見せる。
+/// 指先が絵の上端の中央にあるので、指先が from（や to）に来るように置く。
+private struct PenguinTutorialView: View {
+    let step: PenguinTutorial
+    let food: PenguinFood
+    let from: CGPoint?
+    let to: CGPoint?
+    private static let finger: CGFloat = 76
+
+    var caption: String {
+        switch step {
+        case .tapAnswer: "こたえの こおりを タッチ"
+        case .feed: "\(food.name)を おくちへ はこんでね"
+        case .back: ""
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack {
+                if let from {
+                    TimelineView(.animation) { context in
+                        let t = context.date.timeIntervalSinceReferenceDate
+                        if let to {
+                            // 置き場から口へ運ぶ：つまむ → 運ぶ → 離す、をくり返す。
+                            let cycle = t.truncatingRemainder(dividingBy: 2.2) / 2.2
+                            let k = min(max((cycle - 0.15) / 0.6, 0), 1)
+                            let eased = k * k * (3 - 2 * k)
+                            let point = CGPoint(x: from.x + (to.x - from.x) * eased, y: from.y + (to.y - from.y) * eased)
+                            let visible = cycle < 0.9
+                            ZStack {
+                                PenguinArt.view(food.asset, size: 40).position(x: point.x, y: point.y - 6)
+                                fingerView(at: point, pressed: true)
+                            }
+                            .opacity(visible ? 1 : 0)
+                        } else {
+                            // タップ：指が少し沈んで、指先から輪が広がる。
+                            let cycle = t.truncatingRemainder(dividingBy: 1.2) / 1.2
+                            let ring = min(max((cycle - 0.25) / 0.6, 0), 1)
+                            ZStack {
+                                Circle().strokeBorder(Color.white, lineWidth: 4)
+                                    .frame(width: 20 + 50 * ring, height: 20 + 50 * ring)
+                                    .opacity(cycle > 0.25 ? 1 - ring : 0)
+                                    .position(from)
+                                fingerView(at: from, pressed: cycle > 0.15 && cycle < 0.45)
+                            }
+                        }
+                    }
+                }
+                if !caption.isEmpty, from != nil {
+                    Text(caption)
+                        .font(.penguin(22))
+                        .foregroundStyle(Color.penguinInk)
+                        .padding(.horizontal, 18)
+                        .padding(.vertical, 10)
+                        .modifier(PenguinCard(radius: 18))
+                        .position(x: geometry.size.width / 2, y: geometry.size.height - 110)
+                }
+            }
+        }
+    }
+
+    private func fingerView(at point: CGPoint, pressed: Bool) -> some View {
+        PenguinArt.view("finger", size: Self.finger)
+            .shadow(color: .black.opacity(0.35), radius: 4, y: 3)
+            .scaleEffect(pressed ? 0.9 : 1, anchor: .top)
+            .position(x: point.x + 2, y: point.y + Self.finger / 2 + (pressed ? 2 : 10))
     }
 }
 

@@ -230,12 +230,13 @@ final class PenguinWorld {
         aoMaterials.append(material)
         return material
     }()
-    /// 選んだ氷の上でくるくる回る星の目印（常にカメラを向く）。
+    /// 選んだ氷の上でくるくる回る目印（キャラの好物）。
     let marker = SCNNode()
-    let markerStar = SCNNode()
+    private(set) var markerFood = SCNNode()
     let waterMaterial = SCNMaterial()
     let sparkleTemplate = SCNParticleSystem()
     let splashTemplate = SCNParticleSystem()
+    let heartTemplate = SCNParticleSystem()
 
 
     init() {
@@ -581,6 +582,28 @@ final class PenguinWorld {
         splashTemplate.particleImage = PenguinTextures.softDot()
         splashTemplate.blendMode = .alpha
         splashTemplate.isLightingEnabled = false
+
+        // 食べたときに口元からふわっと上がるハート。
+        heartTemplate.loops = false
+        heartTemplate.birthRate = 60
+        heartTemplate.emissionDuration = 0.1
+        heartTemplate.particleLifeSpan = 1.2
+        heartTemplate.particleLifeSpanVariation = 0.3
+        heartTemplate.particleVelocity = 0.45
+        heartTemplate.particleVelocityVariation = 0.2
+        heartTemplate.emittingDirection = SCNVector3(0, 1, 0)
+        heartTemplate.spreadingAngle = 60
+        heartTemplate.acceleration = SCNVector3(0, 0.25, 0)
+        heartTemplate.particleSize = 0.045
+        heartTemplate.particleSizeVariation = 0.015
+        heartTemplate.particleColor = UIColor(red: 1, green: 0.45, blue: 0.6, alpha: 1)
+        heartTemplate.particleImage = PenguinTextures.heart()
+        heartTemplate.blendMode = .alpha
+        heartTemplate.isLightingEnabled = false
+        let fade = CAKeyframeAnimation()
+        fade.values = [0, 1, 1, 0]
+        fade.keyTimes = [0, 0.15, 0.7, 1]
+        heartTemplate.propertyControllers = [.opacity: SCNParticlePropertyController(animation: fade)]
     }
 
     func burst(_ template: SCNParticleSystem, at position: SIMD3<Float>, scale: Float = 1) {
@@ -593,18 +616,17 @@ final class PenguinWorld {
     // MARK: - Selection marker
 
     private func buildMarker() {
-        // Blenderの星（ci/bake-model.py）。縦軸まわりにくるくる回す。影でも沈まないよう少し光らせる。
-        let material = PenguinAsset.material("star")
-        material.metalness.contents = 0.45
-        material.emission.contents = material.diffuse.contents
-        material.emission.intensity = 0.35
-        markerStar.geometry = PenguinAsset.geometries("star")["body"]
-        markerStar.geometry?.firstMaterial = material
-        markerStar.castsShadow = false
-        marker.addChildNode(markerStar)
         marker.renderingOrder = 30
         marker.isHidden = true
         scene.rootNode.addChildNode(marker)
+    }
+
+    /// 目印をキャラの好物にする。縦軸まわりにくるくる回す。
+    func setMarker(_ food: PenguinFood) {
+        markerFood.removeFromParentNode()
+        markerFood = PenguinFoodModel.node(food, size: 0.42)
+        markerFood.castsShadow = false
+        marker.addChildNode(markerFood)
     }
 
     // MARK: - Contact shadow

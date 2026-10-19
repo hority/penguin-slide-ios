@@ -1,5 +1,6 @@
 // Renders the sound lab's effects and music to WAV files for the app.
-//   NODE_PATH=$(npm root -g) node ci/render-sounds.cjs HelloFlight/Sounds
+//   NODE_PATH=$(npm root -g) node ci/render-sounds.cjs HelloFlight/Sounds [name ...]
+// Names limit the export to those sounds (the default is all of them).
 // The lab page (tools/sound-lab/index.html, sounds.js) is the source: each sound is rendered
 // by the same OfflineAudioContext code the lab plays, in headless Chromium (Playwright).
 const fs = require("fs");
@@ -12,16 +13,17 @@ const { chromium } = require("playwright");
   const browser = await chromium.launch();
   const page = await browser.newPage();
   await page.goto("file://" + path.resolve(__dirname, "../tools/sound-lab/index.html"));
-  const files = await page.evaluate(async () => {
+  const only = process.argv.slice(3);
+  const files = await page.evaluate(async (only) => {
     const result = {};
-    for (const name of window.SoundLab.names) {
+    for (const name of window.SoundLab.names.filter((n) => only.length === 0 || only.includes(n))) {
       const bytes = new Uint8Array(window.SoundLab.wav(await window.SoundLab.render(name)));
       let binary = "";
       for (let i = 0; i < bytes.length; i += 0x8000) binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
       result[name] = btoa(binary);
     }
     return result;
-  });
+  }, only);
   for (const [name, data] of Object.entries(files)) {
     const buffer = Buffer.from(data, "base64");
     fs.writeFileSync(path.join(outDir, name + ".wav"), buffer);

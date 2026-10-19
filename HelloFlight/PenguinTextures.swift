@@ -107,6 +107,20 @@ enum PenguinTextures {
         }
     }
 
+    static func heart() -> UIImage {
+        image(64, 64, opaque: false) { cg, _ in
+            let path = CGMutablePath()
+            path.move(to: CGPoint(x: 32, y: 56))
+            path.addCurve(to: CGPoint(x: 4, y: 22), control1: CGPoint(x: 14, y: 44), control2: CGPoint(x: 4, y: 34))
+            path.addArc(center: CGPoint(x: 18, y: 20), radius: 14, startAngle: .pi, endAngle: 0, clockwise: false)
+            path.addArc(center: CGPoint(x: 46, y: 20), radius: 14, startAngle: .pi, endAngle: 0, clockwise: false)
+            path.addCurve(to: CGPoint(x: 32, y: 56), control1: CGPoint(x: 60, y: 34), control2: CGPoint(x: 50, y: 44))
+            cg.addPath(path)
+            cg.setFillColor(UIColor.white.cgColor)
+            cg.fillPath()
+        }
+    }
+
     /// 接地影のデカール。
     static func contactShadow() -> UIImage {
         image(128, 128, opaque: false) { cg, _ in

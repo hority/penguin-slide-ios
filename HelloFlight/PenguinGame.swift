@@ -8,8 +8,12 @@ struct PenguinPop: Identifiable {
     var text: String
     var position: CGPoint
     var big: Bool
-    var star = true
+    /// 文字の前に出す絵（Illustrations内のファイル名）。
+    var icon: String?
 }
+
+/// はじめて遊ぶときの説明：正解のタップ → 好物を運んで食べさせる → すべりだいボタンで戻る。
+enum PenguinTutorial { case tapAnswer, feed, back }
 
 /// SwiftUIに見せる状態だけを持つ。毎フレーム変わる値は置かない。
 @Observable
@@ -24,6 +28,12 @@ final class PenguinHUD {
     var autoOrbit = false
     var character: PenguinCharacter = .penguin
     var depthOfField = true
+    /// 顔のアップで好物を食べさせているところ。
+    var feeding = false
+    var tutorial: PenguinTutorial?
+    /// 説明の指の位置（画面上）。to があれば from から to へ運ぶ動き、なければ from をタップする動き。
+    var tutorialFrom: CGPoint?
+    var tutorialTo: CGPoint?
 }
 
 /// ゲームの進行。タップした浮き氷へ、ペンギンがすべり台からジャンプする。
@@ -54,6 +64,10 @@ final class PenguinGame {
     /// 氷を選んでからの経過時間（看板の弾み用）。
     private var selectTime: Float = 10
     private lazy var critters = PenguinCritters(world: world, audio: audio)
+    /// 集めた好物（島の置き場）と、ドラッグで食べさせる仕組み。
+    private let pantry = PenguinPantry(food: PenguinCharacter.penguin.food)
+    private let feeder = PenguinFeeder(food: PenguinCharacter.penguin.food)
+    private var lastYum: Float = -10
     private var fallStart = SIMD3<Float>.zero
     private var splashed = false
     /// 頭から腹ばいで滑る（たまのレア演出）。ふだんはお尻で座って滑る。
@@ -69,6 +83,10 @@ final class PenguinGame {
     private static let titleDistance: Float = 6.9
     private static let titleElevation: Float = 0.28
     private static let characterKey = "penguin.character"
+    private static let tutorialKey = "penguin.tutorialDone"
+    /// 食べさせるときの顔のアップ。
+    private static let feedDistance: Float = 1.2
+    private static let feedElevation: Float = 0.25
 
     private static let gravity: Float = 7
     private static let flightDuration: Float = 0.8
@@ -79,11 +97,19 @@ final class PenguinGame {
     private static var standPosition: SIMD3<Float> { SIMD3(PenguinTrack.stand.x, PenguinTrack.platformY + PenguinModel.centerHeight, PenguinTrack.stand.z) }
 
     init() {
+        let saved = UserDefaults.standard.string(forKey: Self.characterKey).flatMap(PenguinCharacter.init(rawValue:)) ?? .penguin
         for i in world.floes.indices { world.setSign(i, text: "?", dots: 0, highlight: false) }
-        if let saved = UserDefaults.standard.string(forKey: Self.characterKey).flatMap(PenguinCharacter.init(rawValue:)) {
-            hud.character = saved
+        hud.character = saved
+        if saved != .penguin {
             world.penguin.build(saved)
+            pantry.setFood(saved.food)
+            feeder.setFood(saved.food)
         }
+        world.setMarker(saved.food)
+        world.scene.rootNode.addChildNode(pantry.root)
+        world.scene.rootNode.addChildNode(feeder.root)
+        pantry.onLand = { [weak self] in self?.audio.play(.pop, volume: 0.7) }
+        feeder.onBite = { [weak self] in self?.bite() }
         cameraTarget = Self.titleTarget
         step(0)
     }
@@ -100,6 +126,9 @@ final class PenguinGame {
         hud.character = character
         UserDefaults.standard.set(character.rawValue, forKey: Self.characterKey)
         world.penguin.build(character)
+        world.setMarker(character.food)
+        pantry.setFood(character.food)
+        feeder.setFood(character.food)
         world.burst(world.sparkleTemplate, at: penguinPosition + SIMD3(0, 0.2, 0), scale: 0.5)
         audio.play(.pop)
         audio.say([.ja(character.name)])
@@ -111,11 +140,15 @@ final class PenguinGame {
     func start(_ mode: PenguinMode) {
         hud.mode = mode
         hud.screen = .playing
+        if !UserDefaults.standard.bool(forKey: Self.tutorialKey) { hud.tutorial = .tapAnswer }
         audio.play(.pop)
         nextQuestion(new: true)
     }
 
     func goHome() {
+        hud.feeding = false
+        feeder.reset()
+        hud.tutorial = nil
         hud.screen = .title
         hud.question = nil
         hintIndex = nil
@@ -139,7 +172,7 @@ final class PenguinGame {
 
     private func nextQuestion(new: Bool) {
         if new || hud.question == nil {
-            hud.question = PenguinQuiz.make(hud.mode, stars: hud.stars, avoiding: hud.question.map { $0.choices[$0.answer] })
+            hud.question = PenguinQuiz.make(hud.mode, stars: hud.stars, food: hud.character.food, avoiding: hud.question.map { $0.choices[$0.answer] })
             hintIndex = nil
             swapTime = 0
             swapSplashed = false
@@ -151,7 +184,8 @@ final class PenguinGame {
         phase = .waiting
         phaseTime = 0
         idleTime = 0
-        audio.say(question.ask)
+        let guide: [PenguinSpeech] = hud.tutorial == .tapAnswer ? [.ja("こたえの こおりを タッチしてね")] : []
+        audio.say(question.ask + guide)
     }
 
     private func applySigns() {
@@ -164,7 +198,7 @@ final class PenguinGame {
     // MARK: - Input
 
     func tap(at point: CGPoint) {
-        guard hud.screen == .playing else {
+        guard hud.screen == .playing, !hud.feeding else {
             hop()
             return
         }
@@ -204,6 +238,141 @@ final class PenguinGame {
         return best.index
     }
 
+    // MARK: - Feeding（集めた好物をドラッグして食べさせる）
+
+    /// 好物を運べるのは、答えを待っている間（顔のアップの間も含む）。
+    private var canFeed: Bool { hud.screen == .playing && phase == .waiting && swapTime == nil }
+
+    private var grabRadius: CGFloat { max(44, viewSize.width * 0.11) }
+
+    /// ふだんは島の置き場の好物（コピーを運ぶ）、顔のアップでは顔のまわりに浮かぶ好物。
+    private func grabbable(at point: CGPoint) -> (position: SIMD3<Float>, float: Int?)? {
+        guard canFeed else { return nil }
+        if hud.feeding {
+            guard let index = feeder.float(near: point, radius: grabRadius, project: self.project) else { return nil }
+            return (feeder.floatPosition(index), index)
+        }
+        guard let position = pantry.item(near: point, radius: grabRadius, project: self.project) else { return nil }
+        return (position, nil)
+    }
+
+    func canGrab(at point: CGPoint) -> Bool { grabbable(at: point) != nil }
+
+    func dragBegan(at point: CGPoint) {
+        guard let grab = grabbable(at: point) else { return }
+        feeder.grab(at: grab.position, float: grab.float)
+        audio.play(.pop, volume: 0.6)
+        dragMoved(to: point)
+    }
+
+    func dragMoved(to point: CGPoint) {
+        guard feeder.held != nil, let p = pointOnFeedPlane(point) else { return }
+        feeder.move(to: p)
+        idleTime = 0
+    }
+
+    /// キャラの口か体の近くで離したら食べる。ふだんの画面なら顔のアップに切り替える。
+    func dragEnded(at point: CGPoint) {
+        guard let held = feeder.heldPosition else { return }
+        let p = pointOnFeedPlane(point) ?? held
+        // 顔のアップでは浮かぶ好物が口の近くにあるので、口のすぐそばで離したときだけ食べる。
+        let eat = canFeed && (hud.feeding ? simd_distance(p, mouthPosition) < 0.14
+                                          : min(simd_distance(p, mouthPosition), simd_distance(p, penguinPosition)) < 0.6)
+        feeder.release(eat: eat)
+        if eat, !hud.feeding {
+            hud.feeding = true
+            feeder.showFloats(true)
+        }
+    }
+
+    /// すべりだいボタン：顔のアップから問題へ戻る。
+    func endFeeding() {
+        guard hud.feeding else { return }
+        hud.feeding = false
+        feeder.reset()
+        audio.play(.pop)
+        if hud.tutorial == .back {
+            hud.tutorial = nil
+            UserDefaults.standard.set(true, forKey: Self.tutorialKey)
+        }
+        repeatQuestion()
+    }
+
+    private func bite() {
+        audio.play(.munch)
+        world.burst(world.heartTemplate, at: mouthPosition + SIMD3(0, 0.06, 0.05))
+        landTime = 0
+        if time - lastYum > 2.5 {
+            lastYum = time
+            audio.say([.ja(["おいしい！", "もぐもぐ、おいしいね！", "もっと ちょうだい！"].randomElement()!)])
+        }
+    }
+
+    /// 口のあたり（両目の間の少し下・手前）。
+    private var mouthPosition: SIMD3<Float> {
+        let eyes = world.penguin.eyes.map(\.simdWorldPosition)
+        guard !eyes.isEmpty else { return penguinPosition + SIMD3(0, 0.2, 0.15) }
+        let middle = eyes.reduce(SIMD3<Float>.zero, +) / Float(eyes.count)
+        return middle + world.penguin.root.simdOrientation.act(SIMD3(0, -0.09, 0.07))
+    }
+
+    /// 指の位置を、キャラの口を通りカメラに向いた面へ写す（運んでいる好物の位置）。
+    private func pointOnFeedPlane(_ point: CGPoint) -> SIMD3<Float>? { pointOnPlane(point, through: mouthPosition) }
+
+    /// 顔のアップで好物を浮かべる場所：画面の下の方の左・中央・右（顔の少し手前）。画面の縦横比によらず指が届く。
+    private func floatSpots() -> [SIMD3<Float>] {
+        let through = mouthPosition - world.cameraNode.simdWorldFront * 0.2
+        return [CGPoint(x: 0.2, y: 0.76), CGPoint(x: 0.5, y: 0.83), CGPoint(x: 0.8, y: 0.76)].compactMap { spot in
+            pointOnPlane(CGPoint(x: spot.x * viewSize.width, y: spot.y * viewSize.height), through: through)
+        }
+    }
+
+    /// 画面上の点を、through を通りカメラに向いた面へ写す。
+    private func pointOnPlane(_ point: CGPoint, through: SIMD3<Float>) -> SIMD3<Float>? {
+        let inverse = viewProjection().inverse
+        let x = Float(point.x / max(viewSize.width, 1)) * 2 - 1, y = 1 - Float(point.y / max(viewSize.height, 1)) * 2
+        let near = inverse * SIMD4(x, y, -1, 1), far = inverse * SIMD4(x, y, 1, 1)
+        let origin = SIMD3(near.x, near.y, near.z) / near.w
+        let direction = simd_normalize(SIMD3(far.x, far.y, far.z) / far.w - origin)
+        let normal = world.cameraNode.simdWorldFront
+        let denominator = simd_dot(direction, normal)
+        guard abs(denominator) > 1e-4 else { return nil }
+        let t = simd_dot(through - origin, normal) / denominator
+        return t > 0 ? origin + direction * t : nil
+    }
+
+    // MARK: - Tutorial
+
+    /// 説明の指を、いま見せる場所に合わせる（見せられないときは隠す）。
+    private func updateTutorial() {
+        guard let step = hud.tutorial else { return }
+        var from: CGPoint?, to: CGPoint?
+        let ready = canFeed && !hud.feeding && feeder.held == nil
+        switch step {
+        case .tapAnswer:
+            // 看板の文字を隠さないよう、指先は答えの氷に置く。
+            if ready, let question = hud.question { from = project(world.floes[question.answer].top) }
+        case .feed:
+            if ready, let item = pantry.firstLanded {
+                from = project(item)
+                to = project(mouthPosition)
+            }
+            // 1つ食べて、もぐもぐを見てから戻り方を教える。
+            if hud.feeding, feeder.sinceBite > 1.4, feeder.sinceBite < 9 {
+                hud.tutorial = .back
+                audio.say([.ja("すべりだいの ボタンで もどれるよ")])
+            }
+        case .back:
+            break
+        }
+        func moved(_ a: CGPoint?, _ b: CGPoint?) -> Bool {
+            guard let a, let b else { return (a == nil) != (b == nil) }
+            return hypot(a.x - b.x, a.y - b.y) > 3
+        }
+        if moved(hud.tutorialFrom, from) { hud.tutorialFrom = from }
+        if moved(hud.tutorialTo, to) { hud.tutorialTo = to }
+    }
+
     // MARK: - Projection
 
     private func viewProjection() -> simd_float4x4 {
@@ -239,9 +408,13 @@ final class PenguinGame {
         updateMarker()
         updateCamera(dt)
         updateShading()
+        pantry.update(dt)
+        feeder.closeUp = hud.feeding
+        feeder.update(dt, time: time, mouth: mouthPosition, spots: hud.feeding ? floatSpots() : [])
+        updateTutorial()
         critters.update(dt)
         // ときどき海の生き物が出てくる。
-        if time > nextCritter, phase == .waiting || phase == .idle {
+        if time > nextCritter, !hud.feeding, phase == .waiting || phase == .idle {
             critters.play()
             nextCritter = time + .random(in: 25...45)
         }
@@ -259,7 +432,7 @@ final class PenguinGame {
             idleTime += dt
             roll = sin(time * 2.4) * 0.07
             position.y += abs(sin(time * 2.4)) * 0.015
-            if phase == .waiting, idleTime > 9 { repeatQuestion() }
+            if phase == .waiting, idleTime > 9, !hud.feeding { repeatQuestion() }
         case .flop:
             let k = smooth(min(phaseTime / 0.3, 1))
             position = mix(Self.standPosition, slidePosition(0), t: k) + SIMD3(0, sin(k * .pi) * 0.12, 0)
@@ -350,7 +523,7 @@ final class PenguinGame {
         let blinkPhase = time - nextBlink
         if blinkPhase > 0.14 { nextBlink = time + .random(in: 2.2...4.5) }
         model.setBlink(blinkPhase > 0 && blinkPhase < 0.14 ? sin(blinkPhase / 0.14 * .pi) : 0)
-        var headPitch: Float = 0, headYaw: Float = 0
+        var headPitch: Float = 0, headYaw: Float = 0, headRoll: Float = 0
         switch phase {
         case .idle, .waiting:
             headYaw = sin(time * 0.8) * 0.3
@@ -362,7 +535,24 @@ final class PenguinGame {
         default:
             break
         }
-        model.head.simdEulerAngles = SIMD3(headPitch, headYaw, 0)
+        // 好物を運ぶ間はそちらを見て手をぱたぱた。顔のアップでは正面を向き、食べたら目を細めてもぐもぐ。
+        if let held = feeder.heldPosition {
+            let d = held - (penguinPosition + SIMD3(0, 0.2, 0))
+            headYaw = max(-0.6, min(0.6, atan2(d.x, d.z)))
+            headPitch = max(-0.4, min(0.4, -atan2(d.y, simd_length(SIMD2(d.x, d.z))) * 0.6))
+            flap = 0.6 + sin(time * 16) * 0.4
+        } else if hud.feeding {
+            headYaw = sin(time * 0.9) * 0.08
+            headPitch = sin(time * 1.6) * 0.04
+        }
+        if hud.feeding, feeder.sinceBite < 1.3 {
+            let chew = feeder.sinceBite, fade = 1 - chew / 1.3
+            headPitch = sin(chew * 16) * 0.12 * fade
+            headRoll = sin(chew * 5) * 0.14 * fade
+            flap = 0.5 + sin(time * 12) * 0.35
+            model.setBlink(0.6)
+        }
+        model.head.simdEulerAngles = SIMD3(headPitch, headYaw, headRoll)
         model.leftFlipper.simdEulerAngles = SIMD3(0, 0, -0.15 - flap)
         model.rightFlipper.simdEulerAngles = SIMD3(0, 0, 0.15 + flap)
         model.applyPose()
@@ -399,10 +589,16 @@ final class PenguinGame {
             lastCorrect = true
             phase = .celebrate
             hud.stars += 1
+            pantry.add(from: floe.top + SIMD3(0, 0.5, 0))
             audio.play(.correct)
             audio.play(.sparkle, volume: 0.6)
             world.burst(world.sparkleTemplate, at: floe.top + SIMD3(0, 0.35, 0))
-            audio.say(question.praise)
+            if hud.tutorial == .tapAnswer {
+                hud.tutorial = .feed
+                audio.say(question.praise + [.ja("\(hud.character.food.name)を おくちへ はこんで あげてね")])
+            } else {
+                audio.say(question.praise)
+            }
             let milestone = hud.stars % 5 == 0
             if milestone {
                 audio.play(.fanfare)
@@ -411,7 +607,7 @@ final class PenguinGame {
                 audio.playFunny()
             }
             if let point = project(floe.top + SIMD3(0, 0.75, 0)) {
-                addPop(milestone ? "すごい！ ×\(hud.stars)" : "+1", at: point, big: milestone)
+                addPop(milestone ? "すごい！ ×\(hud.stars)" : "+1", at: point, big: milestone, icon: hud.character.food.asset)
             }
             hintIndex = nil
             world.setSign(chosen, text: question.choices[chosen], dots: question.dots[chosen], highlight: true)
@@ -428,7 +624,7 @@ final class PenguinGame {
             audio.play(.wrong, volume: 0.9)
             audio.say(question.hint)
             world.setSign(question.answer, text: question.choices[question.answer], dots: question.dots[question.answer], highlight: true)
-            if let point = project(floe.top + SIMD3(0, 0.75, 0)) { addPop("ばしゃーん！", at: point, big: false, star: false) }
+            if let point = project(floe.top + SIMD3(0, 0.75, 0)) { addPop("ばしゃーん！", at: point, big: false) }
         }
     }
 
@@ -438,8 +634,8 @@ final class PenguinGame {
         returnPopped = false
     }
 
-    private func addPop(_ text: String, at point: CGPoint, big: Bool, star: Bool = true) {
-        let pop = PenguinPop(text: text, position: point, big: big, star: star)
+    private func addPop(_ text: String, at point: CGPoint, big: Bool, icon: String? = nil) {
+        let pop = PenguinPop(text: text, position: point, big: big, icon: icon)
         hud.pops.append(pop)
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { [weak hud = self.hud] in
             hud?.pops.removeAll { $0.id == pop.id }
@@ -490,14 +686,17 @@ final class PenguinGame {
 
     private func updateCamera(_ dt: Float) {
         let title = hud.screen == .title
+        // 食べさせるときは、台の上のキャラの顔を正面からアップで映す。
+        let feeding = !title && hud.feeding
         let follow = Self.baseTarget + (penguinPosition - Self.baseTarget) * SIMD3(0.06, 0.05, 0.05)
-        let goal = title ? Self.titleTarget : follow
+        let goal = title ? Self.titleTarget : (feeding ? Self.standPosition + SIMD3(0, 0.16, 0) : follow)
         let ease = min(1, dt * 2.5)
         cameraTarget += (goal - cameraTarget) * ease
         let wide = Float(viewSize.width / max(viewSize.height, 1))
-        cameraDistance += ((title ? Self.titleDistance : Self.distance * (wide > 0.8 ? 0.82 : 1)) - cameraDistance) * ease
-        cameraElevation += ((title ? Self.titleElevation : Self.elevation) - cameraElevation) * ease
-        orbit = hud.autoOrbit ? orbit + dt : orbit * max(0, 1 - dt * 2)
+        let distance = title ? Self.titleDistance : (feeding ? Self.feedDistance : Self.distance * (wide > 0.8 ? 0.82 : 1))
+        cameraDistance += (distance - cameraDistance) * ease
+        cameraElevation += ((title ? Self.titleElevation : (feeding ? Self.feedElevation : Self.elevation)) - cameraElevation) * ease
+        orbit = hud.autoOrbit && !feeding ? orbit + dt : orbit * max(0, 1 - dt * 2)
         cameraAzimuth += ((title ? 0.25 : 0) - cameraAzimuth) * ease
         let azimuth = (hud.autoOrbit ? sin(orbit * 0.25) * 0.32 : 0) + cameraAzimuth
         let offset = SIMD3(sin(azimuth) * cos(cameraElevation), sin(cameraElevation), cos(azimuth) * cos(cameraElevation)) * cameraDistance
@@ -506,7 +705,11 @@ final class PenguinGame {
 
         // 被写界深度の焦点を主役に合わせる。選ぶ間は答えの看板がくっきり読めるよう浮き氷側へ寄せる。
         var subject = penguinPosition
-        if !title, phase == .waiting || phase == .flop { subject = mix(penguinPosition, SIMD3(0, 0.4, 0.8), t: 0.75) }
+        if feeding {
+            subject = mouthPosition
+        } else if !title, phase == .waiting || phase == .flop {
+            subject = mix(penguinPosition, SIMD3(0, 0.4, 0.8), t: 0.75)
+        }
         let target = simd_distance(world.cameraNode.simdPosition, subject)
         focusDistance += (target - focusDistance) * min(1, dt * 4)
         world.camera.focusDistance = CGFloat(focusDistance)
@@ -539,7 +742,7 @@ final class PenguinGame {
 
     /// 選べる氷は水際の輪が順番に光り、選んだ氷・正解のヒントは琥珀色で光る。
     private func updateRing(_ floe: PenguinFloe, index: Int) {
-        let selectable = hud.screen == .playing && phase == .waiting && swapTime == nil
+        let selectable = hud.screen == .playing && phase == .waiting && swapTime == nil && !hud.feeding
         let jumping = phase == .flop || phase == .sliding || phase == .flying
         var alpha: Float = 0, scale: Float = 1, amber = false
         if hud.screen == .playing, jumping, index == chosen {
@@ -562,13 +765,13 @@ final class PenguinGame {
         floe.ringMaterial.emission.intensity = amber ? 1.6 : 1.1
     }
 
-    /// 選んだ氷の看板の上で星がくるくる回る（ジャンプが終わるまで）。
+    /// 選んだ氷の看板の上で好物がくるくる回る（ジャンプが終わるまで）。
     private func updateMarker() {
         let jumping = phase == .flop || phase == .sliding || phase == .flying
         world.marker.isHidden = !(hud.screen == .playing && jumping)
         guard !world.marker.isHidden else { return }
         world.marker.simdPosition = world.floes[chosen].board.simdWorldPosition + SIMD3(0, 0.62 + abs(sin(time * 5)) * 0.08, 0)
-        world.markerStar.simdEulerAngles = SIMD3(0, time * 4, 0)
+        world.markerFood.simdEulerAngles = SIMD3(0, time * 4, 0)
     }
 
     /// 問題切り替え時の浮き氷の上下。順番に沈み、看板を替えて、少し弾みながら浮かぶ。

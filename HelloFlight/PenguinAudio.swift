@@ -6,7 +6,7 @@ import UIKit
 final class PenguinAudio: NSObject, AVSpeechSynthesizerDelegate {
     enum Sound: String, CaseIterable {
         case pop, pi, slide, jump, land, splash, correct, wrong, fanfare, sparkle
-        case boing, whistle, squeak, pikopiko, bubble, whale, blub
+        case boing, whistle, squeak, pikopiko, bubble, whale, blub, munch
     }
 
     /// たまに鳴る面白い音。まちがいと紛れないよう、上がる・弾む音だけ。

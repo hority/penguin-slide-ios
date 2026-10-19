@@ -4,8 +4,10 @@ import UIKit
 
 /// SceneKit標準の描画（HDR・トーンマップ・ブルーム・被写界深度）でジオラマを表示する。
 /// ゲームの更新はメインスレッドのCADisplayLinkで行う。
-final class PenguinRenderView: UIView {
+final class PenguinRenderView: UIView, UIGestureRecognizerDelegate {
     private let game: PenguinGame
+    /// ドラッグを始めた指の位置（パンは少し動いてから始まるので、触れた位置を覚えておく）。
+    private var touchStart = CGPoint.zero
     private let sceneView = SCNView(frame: .zero, options: nil)
     private var displayLink: CADisplayLink?
     private var lastTime: CFTimeInterval = 0
@@ -24,6 +26,11 @@ final class PenguinRenderView: UIView {
         sceneView.isUserInteractionEnabled = false
         addSubview(sceneView)
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
+        // 好物をつまんで運ぶ。好物の上で触れたときだけ始まる（それ以外はタップとして扱う）。
+        let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))
+        pan.maximumNumberOfTouches = 1
+        pan.delegate = self
+        addGestureRecognizer(pan)
         // CADisplayLink は対象を強く持つので、弱参照の中継を挟んで循環参照を避ける。
         let link = CADisplayLink(target: PenguinWeakTarget(self), selector: #selector(PenguinWeakTarget.tick(_:)))
         link.add(to: .main, forMode: .common)
@@ -64,6 +71,31 @@ final class PenguinRenderView: UIView {
 
     @objc private func tapped(_ recognizer: UITapGestureRecognizer) {
         game.tap(at: recognizer.location(in: self))
+    }
+
+    func gestureRecognizer(_ gestureRecognizer: UIGestureRecognizer, shouldReceive touch: UITouch) -> Bool {
+        touchStart = touch.location(in: self)
+        return true
+    }
+
+    override func gestureRecognizerShouldBegin(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+        guard gestureRecognizer is UIPanGestureRecognizer else { return super.gestureRecognizerShouldBegin(gestureRecognizer) }
+        return game.canGrab(at: touchStart)
+    }
+
+    @objc private func panned(_ recognizer: UIPanGestureRecognizer) {
+        let point = recognizer.location(in: self)
+        switch recognizer.state {
+        case .began:
+            game.dragBegan(at: touchStart)
+            game.dragMoved(to: point)
+        case .changed:
+            game.dragMoved(to: point)
+        case .ended, .cancelled, .failed:
+            game.dragEnded(at: point)
+        default:
+            break
+        }
     }
 
     fileprivate func tick(_ link: CADisplayLink) {
