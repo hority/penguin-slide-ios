@@ -25,6 +25,19 @@ extension PenguinCharacter {
     }
 }
 
+extension PenguinCharacter {
+    /// 口の位置（モデルの座標：足元が原点、正面が+z、m）。メッシュの正面の中心線から測った値。
+    /// ペンギンはくちばしの先、タコとオバケは口、ユニコーンは鼻先。
+    var mouth: SIMD3<Float> {
+        switch self {
+        case .penguin: SIMD3(0, 0.385, 0.2)
+        case .octopus: SIMD3(0, 0.25, 0.28)
+        case .ghost: SIMD3(0, 0.315, 0.27)
+        case .unicorn: SIMD3(0, 0.42, 0.21)
+        }
+    }
+}
+
 /// 好物の3Dモデル。モデルは中心が原点・いちばん長い辺が1・正面が+zなので、節点の拡大率がそのまま大きさになる。
 enum PenguinFoodModel {
     private static var cache: [String: SCNGeometry] = [:]

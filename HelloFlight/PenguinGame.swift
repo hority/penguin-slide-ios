@@ -306,12 +306,11 @@ final class PenguinGame {
         }
     }
 
-    /// 口のあたり（両目の間の少し下・手前）。
+    /// 口の位置（ワールド座標）。キャラごとの口の位置を頭の節点を通して変換するので、頭の動きにもついていく。
+    /// （目の節点は軸をずらしてあり、そのワールド位置は足元を指すので使わない。）
     private var mouthPosition: SIMD3<Float> {
-        let eyes = world.penguin.eyes.map(\.simdWorldPosition)
-        guard !eyes.isEmpty else { return penguinPosition + SIMD3(0, 0.2, 0.15) }
-        let middle = eyes.reduce(SIMD3<Float>.zero, +) / Float(eyes.count)
-        return middle + world.penguin.root.simdOrientation.act(SIMD3(0, -0.09, 0.07))
+        let character = hud.character
+        return world.penguin.head.simdConvertPosition(character.mouth - PenguinRig.setup(for: character).headPivot, to: nil)
     }
 
     /// 運ぶ好物と浮かぶ好物は、カメラのすぐ前（1.2m）の面に置く。どの画面でも同じ大きさに見え、島や台に埋もれない。
