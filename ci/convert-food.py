@@ -66,6 +66,7 @@ for source, name in MODELS.items():
     orm = np.asarray(image(material["metallicRoughnessTexture"]).convert("RGB").resize((BASE, BASE), Image.LANCZOS), np.float32) / 255
     shaded = np.clip(base * (0.6 + 0.4 * orm[:, :, :1]), 0, 1)
     Image.fromarray((shaded * 255).round().astype(np.uint8)).save(os.path.join(out_dir, f"{name}_base.jpg"), quality=88)
-    rough = Image.fromarray((orm[:, :, 1] * 255).round().astype(np.uint8)).resize((ROUGH, ROUGH), Image.LANCZOS)
+    # RGB like the other models' maps: a single-channel PNG becomes an R8 sRGB texture, which the simulator's Metal rejects.
+    rough = Image.fromarray((orm[:, :, 1] * 255).round().astype(np.uint8)).resize((ROUGH, ROUGH), Image.LANCZOS).convert("RGB")
     rough.save(os.path.join(out_dir, f"{name}_rough.png"), optimize=True)
     print(f"{name}: {len(position)} vertices, {len(index) // 3} triangles, size {(hi - lo).round(3)}")
