@@ -56,7 +56,7 @@ enum PenguinFoodModel {
     }
 }
 
-/// 光る「×N」の数字。常にカメラを向き、ほかの物に隠れないよう最前面に描く（光は文字面に描いたにじみ）。
+/// 「×N」の数のバッジ。常にカメラを向き、ほかの物に隠れないよう最前面に描く。
 final class PenguinCountLabel {
     let node = SCNNode()
     private let material = SCNMaterial()
@@ -102,6 +102,8 @@ final class PenguinPantry {
     /// 着いた数（表示している数）。
     private(set) var count = 0
     private var bounce: Float = 10
+    /// 浮き氷から飛んでくるときの大きさ（選んだ氷の上の目印と同じ）。
+    static let flightSize: Float = 0.42
     var onLand: () -> Void = {}
 
     init(food: PenguinFood) {
@@ -130,7 +132,7 @@ final class PenguinPantry {
 
     /// 1つ増やす：from から飛んできて、着いたら数が増える。
     func add(from: SIMD3<Float>) {
-        let node = PenguinFoodModel.node(food, size: food.size)
+        let node = PenguinFoodModel.node(food, size: Self.flightSize)
         node.simdPosition = from
         root.addChildNode(node)
         flights.append((node, from, 0))
@@ -159,7 +161,7 @@ final class PenguinPantry {
             let k = min(t / 0.7, 1)
             node.simdPosition = from + (position - from) * k + SIMD3(0, sin(k * .pi) * 0.9, 0)
             node.simdEulerAngles = SIMD3(0, (1 - k) * 2 * .pi, 0)
-            node.simdScale = SIMD3(repeating: food.size * (1 - 0.5 * k))
+            node.simdScale = SIMD3(repeating: Self.flightSize * (1 - 0.4 * k))
             if k >= 1 {
                 node.removeFromParentNode()
                 count += 1
@@ -195,6 +197,9 @@ final class PenguinFeeder {
     private var floats: [(node: SCNNode, gone: Float?)] = []
     /// 口へ向かっている好物。
     private var bites: [(node: SCNNode, from: SIMD3<Float>, size: Float, time: Float)] = []
+    private static let biteDuration: Float = 0.45
+    /// 口へ飛んでいる好物があるか。
+    var eating: Bool { !bites.isEmpty }
     /// 最後にかじってからの時間（もぐもぐの動き用）。
     private(set) var sinceBite: Float = 10
     var onBite: () -> Void = {}
@@ -308,16 +313,19 @@ final class PenguinFeeder {
         }
         for i in bites.indices {
             bites[i].time += dt
-            let k = min(bites[i].time / 0.22, 1)
-            bites[i].node.simdPosition = bites[i].from + (mouth - bites[i].from) * k
-            bites[i].node.simdScale = SIMD3(repeating: bites[i].size * (1 - 0.85 * k))
+            // 放物線を描いて口へ（離れているほど高く上がる）。
+            let k = min(bites[i].time / Self.biteDuration, 1)
+            let arc = max(0.25, simd_distance(bites[i].from, mouth) * 0.3)
+            bites[i].node.simdPosition = bites[i].from + (mouth - bites[i].from) * k + SIMD3(0, sin(k * .pi) * arc, 0)
+            bites[i].node.simdEulerAngles = SIMD3(0, k * 2 * .pi, 0)
+            bites[i].node.simdScale = SIMD3(repeating: bites[i].size * (1 - 0.7 * k * k))
             if k >= 1 {
                 bites[i].node.removeFromParentNode()
                 sinceBite = 0
                 onBite()
             }
         }
-        bites.removeAll { $0.time >= 0.22 }
+        bites.removeAll { $0.time >= Self.biteDuration }
         for i in floats.indices where i < spots.count {
             let node = floats[i].node
             node.simdPosition = spots[i] + SIMD3(0, sin(time * 2 + Float(i) * 2) * 0.012, 0)

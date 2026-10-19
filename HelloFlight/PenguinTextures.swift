@@ -107,21 +107,25 @@ enum PenguinTextures {
         }
     }
 
-    /// 光る数字「×N」の文字面：白い文字に濃紺の太い縁、そのまわりに琥珀色のにじみ。雪の上でも海の上でも読める。
+    /// 数のバッジ「×N」：ゲームのボタンと同じ、琥珀色の縁の白い丸いバッジに濃紺の文字。
     static func countLabel(_ text: String) -> UIImage {
         image(256, 128, opaque: false) { cg, rect in
-            let font = UIFont(name: PenguinFonts.name, size: 92) ?? .systemFont(ofSize: 92, weight: .black)
+            let badge = UIBezierPath(roundedRect: rect.insetBy(dx: 10, dy: 12), cornerRadius: 52)
+            cg.setShadow(offset: CGSize(width: 0, height: 5), blur: 6, color: UIColor(white: 0, alpha: 0.3).cgColor)
+            cg.setFillColor(UIColor.white.cgColor)
+            cg.addPath(badge.cgPath)
+            cg.fillPath()
+            cg.setShadow(offset: .zero, blur: 0, color: nil)
+            cg.setStrokeColor(color(0xf0b03d).cgColor)
+            cg.setLineWidth(10)
+            cg.addPath(UIBezierPath(roundedRect: rect.insetBy(dx: 15, dy: 17), cornerRadius: 47).cgPath)
+            cg.strokePath()
+            let font = UIFont(name: PenguinFonts.name, size: 70) ?? .systemFont(ofSize: 70, weight: .black)
             let style = NSMutableParagraphStyle()
             style.alignment = .center
-            let outline = NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: style, .foregroundColor: color(0x101a36),
-                                                                       .strokeColor: color(0x101a36), .strokeWidth: -26])
-            let fill = NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: style, .foregroundColor: UIColor.white])
-            let height = fill.boundingRect(with: rect.size, options: [.usesLineFragmentOrigin], context: nil).height
-            let box = CGRect(x: 0, y: (rect.height - height) / 2, width: rect.width, height: height)
-            cg.setShadow(offset: .zero, blur: 14, color: color(0xffc24a, 0.95).cgColor)
-            outline.draw(in: box)
-            cg.setShadow(offset: .zero, blur: 0, color: nil)
-            fill.draw(in: box)
+            let string = NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: style, .foregroundColor: color(0x101a36)])
+            let height = string.boundingRect(with: rect.size, options: [.usesLineFragmentOrigin], context: nil).height
+            string.draw(in: CGRect(x: 0, y: (rect.height - height) / 2, width: rect.width, height: height))
         }
     }
 

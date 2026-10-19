@@ -271,14 +271,10 @@ final class PenguinGame {
         idleTime = 0
     }
 
-    /// 運んでいる好物（指先の少し上）が画面上でキャラの口か体に重なったら食べる。ふだんの画面なら顔のアップに切り替える。
+    /// 手を離すと、好物は放物線を描いて口へ飛んでいき、食べる。ふだんの画面なら顔のアップに切り替える。
     func dragEnded(at point: CGPoint) {
         guard feeder.held != nil else { return }
-        let tip = CGPoint(x: point.x, y: point.y - Self.heldLift)
-        func near(_ p: SIMD3<Float>, _ radius: CGFloat) -> Bool { project(p).map { hypot($0.x - tip.x, $0.y - tip.y) < radius } ?? false }
-        // アップではキャラが大きく映るので、顔か体のあたりで離せば食べる（浮かぶ好物はそれより下にある）。
-        let radius = max(70, viewSize.width * (hud.feeding ? 0.3 : 0.16))
-        let eat = canFeed && (near(mouthPosition, radius) || near(penguinPosition, radius))
+        let eat = canFeed
         feeder.release(eat: eat)
         if eat, !hud.feeding {
             hud.feeding = true
@@ -292,7 +288,7 @@ final class PenguinGame {
         hud.feeding = false
         feeder.reset()
         audio.play(.pop)
-        if hud.tutorial == .back {
+        if hud.tutorial == .back || hud.tutorial == .feed {
             hud.tutorial = nil
             UserDefaults.standard.set(true, forKey: Self.tutorialKey)
         }
@@ -332,7 +328,7 @@ final class PenguinGame {
     /// アップで好物を浮かべる場所：画面の下寄りの中央。画面の縦横比によらず指が届く。
     private func floatSpots() -> [SIMD3<Float>] {
         let through = nearPlane
-        return [CGPoint(x: 0.44, y: 0.7)].compactMap { spot in
+        return [CGPoint(x: 0.44, y: 0.8)].compactMap { spot in
             pointOnPlane(CGPoint(x: spot.x * viewSize.width, y: spot.y * viewSize.height), through: through)
         }
     }
@@ -423,6 +419,8 @@ final class PenguinGame {
         feeder.cameraUp = world.cameraNode.simdWorldUp
         feeder.update(dt, time: time, mouth: mouthPosition, spots: hud.feeding ? floatSpots() : [], count: pantry.count)
         updateTutorial()
+        // 全部食べたら、もぐもぐを見せてからすべりだいに戻る。
+        if hud.feeding, pantry.count == 0, feeder.held == nil, !feeder.eating, feeder.sinceBite > 1.6 { endFeeding() }
         critters.update(dt)
         // ときどき海の生き物が出てくる。
         if time > nextCritter, !hud.feeding, phase == .waiting || phase == .idle {
