@@ -37,14 +37,20 @@ for pair in "iphone:$iphone" "ipad:$ipad"; do
   xcrun simctl bootstatus "$device" -b > /dev/null
   xcrun simctl status_bar "$device" override --time 9:41 --batteryState charged --batteryLevel 100 --cellularBars 4 --wifiBars 3
   xcrun simctl install "$device" "$app"
-  # 1回目はシェーダーの準備で遅いので、撮らずに起動しておく。
-  xcrun simctl launch "$device" "$bundle" > /dev/null
+  # 1回目はシェーダーの準備で遅いので、撮らずに起動しておく（落ちたときの原因調べにコンソール出力を残す）。
+  xcrun simctl launch --console-pty "$device" "$bundle" > "$out/$tag-console.txt" 2>&1 &
+  console=$!
   sleep 15
+  kill "$console" 2>/dev/null || true
   shot "$device" "$tag-1-title" -shot title -penguin.character unicorn -penguin.food 0
   shot "$device" "$tag-2-hiragana" -shot quiz -shotMode hiragana -penguin.character penguin -penguin.food 3
   shot "$device" "$tag-3-math" -shot quiz -shotMode math -penguin.character octopus -penguin.food 6
   shot "$device" "$tag-4-feed" -shot feed -penguin.character ghost -penguin.food 5
   shot "$device" "$tag-5-english" -shot quiz -shotMode alphabet -penguin.character unicorn -penguin.food 8
   xcrun simctl shutdown "$device"
+done
+# クラッシュしていたら、その記録も一緒に置く。
+for report in ~/Library/Logs/DiagnosticReports/HelloFlight*; do
+  [ -e "$report" ] && cp "$report" "$out/$(basename "$report").txt"
 done
 ls -la "$out"

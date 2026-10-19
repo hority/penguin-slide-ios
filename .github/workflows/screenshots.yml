@@ -28,8 +28,8 @@ jobs:
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git checkout -q --orphan app-store-screenshots
           git rm -rq --cached .
-          cp build/screenshots/*.png .
-          git add ./*.png
+          cp build/screenshots/* .
+          git add ./*.png ./*.txt
           git commit -qm "Screenshots for ${GITHUB_SHA}"
           git push -qf origin app-store-screenshots
       - name: Save build log
