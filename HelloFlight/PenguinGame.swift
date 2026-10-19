@@ -299,6 +299,7 @@ final class PenguinGame {
     }
 
     private func bite() {
+        pantry.consume()
         audio.play(.munch)
         world.burst(world.heartTemplate, at: mouthPosition + SIMD3(0, 0.06, 0.05))
         landTime = 0

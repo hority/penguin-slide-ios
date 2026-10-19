@@ -143,6 +143,14 @@ final class PenguinPantry {
 
     var firstLanded: SIMD3<Float>? { count > 0 ? position : nil }
 
+    /// 食べた分を1つ減らす。
+    func consume() {
+        guard count > 0 else { return }
+        count -= 1
+        bounce = 0
+        refresh()
+    }
+
     func update(_ dt: Float, time: Float) {
         for f in flights.indices {
             flights[f].time += dt
@@ -212,6 +220,8 @@ final class PenguinFeeder {
     private static let floatCount = 1
     private var floatSize: Float { food.size }
     private let label = PenguinCountLabel(height: 0.13)
+    /// 集めた数が0なら浮かぶ好物も出さない。
+    private var empty = false
 
     func showFloats(_ on: Bool) {
         floats.forEach { $0.node.removeFromParentNode() }
@@ -230,7 +240,7 @@ final class PenguinFeeder {
     /// 画面上の点に近い、浮かんでいる好物の番号。
     func float(near point: CGPoint, radius: CGFloat, project: (SIMD3<Float>) -> CGPoint?) -> Int? {
         var best: (index: Int, distance: CGFloat)?
-        for (i, f) in floats.enumerated() where f.gone == nil {
+        for (i, f) in floats.enumerated() where f.gone == nil && !empty {
             guard let screen = project(f.node.simdPosition) else { continue }
             let d = hypot(screen.x - point.x, screen.y - point.y)
             if d < radius, d < (best?.distance ?? .infinity) { best = (i, d) }
@@ -284,6 +294,8 @@ final class PenguinFeeder {
     /// mouth は口（食べる位置）、spots は浮かぶ好物の置き場所（画面の下の方、顔の手前）、count は集めた数。
     func update(_ dt: Float, time: Float, mouth: SIMD3<Float>, spots: [SIMD3<Float>], count: Int) {
         label.set(count)
+        empty = count == 0
+        label.node.isHidden = floats.isEmpty || empty
         if let spot = spots.first { label.node.simdPosition = spot + SIMD3(floatSize * 0.9 + 0.08, 0.04, 0) }
         sinceBite += dt
         if let held {
@@ -310,6 +322,8 @@ final class PenguinFeeder {
                 // 取られている間は隠し、離されてから0.5秒でぽんと出てくる。
                 let next = heldFloat == i ? 0 : gone + dt
                 floats[i].gone = next > 0.5 ? nil : next
+                node.simdScale = SIMD3(repeating: 0.01)
+            } else if empty {
                 node.simdScale = SIMD3(repeating: 0.01)
             } else {
                 node.simdScale += (SIMD3(repeating: floatSize) - node.simdScale) * min(1, dt * 12)
