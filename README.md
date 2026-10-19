@@ -13,11 +13,11 @@ For an unsigned archive on a Mac with Xcode installed:
 bash ci/build-unsigned.sh
 ```
 
-The **Build iOS** workflow is manual only. No macOS jobs run automatically on pushes or pull requests. This source snapshot does not include the earlier prototype apps or their tests.
+The **Build iOS** workflow is manual only. It does not run on pushes or pull requests. This source snapshot does not include the earlier prototype apps or their tests.
 
 ## Release signing
 
-The manual **Upload to TestFlight** workflow reads existing encrypted signing assets from a separate private repository. The owner must configure its protected environment before use; no Apple credentials or signing material are committed here. See [release setup](docs/RELEASING.md).
+The **Upload to TestFlight** workflow runs automatically for app or release configuration changes pushed or merged to master, and also supports manual runs. It reads existing encrypted signing assets from a separate private repository. The owner must configure its protected environment before use; no Apple credentials or signing material are committed here. See [release setup](docs/RELEASING.md).
 
 ## Assets and licensing
 

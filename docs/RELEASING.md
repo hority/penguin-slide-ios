@@ -4,14 +4,16 @@ The game source repository is public.
 Signing material must remain in a separate **private** repository. Never copy
 its signing branch or commit history into this repository.
 
-The manual **Upload to TestFlight** workflow runs only from `master`, uses the
+The **Upload to TestFlight** workflow runs on app/release-related pushes to `master`
+(including merged pull requests), or manually from `master`. Documentation-only
+changes do not trigger a release. It uses the
 `testflight` environment, and imports existing profiles with Fastlane match
 `readonly: true`. It does not create certificates, renew profiles, register an
 app, change tester groups, or submit an external beta/App Store review.
 
 Configure the `testflight` GitHub environment with deployment restricted to
-`master`; require a trusted reviewer before release where the GitHub plan supports
-it. Do not give contributors who should not publish releases write access.
+`master`. For fully automatic releases, no required reviewer may be configured
+on this environment. Reviewer settings must be changed by the owner separately. Do not give contributors who should not publish releases write access.
 
 Environment variables:
 - `APPLE_TEAM_ID`
