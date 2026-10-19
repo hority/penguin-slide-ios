@@ -56,115 +56,121 @@ enum PenguinFoodModel {
     }
 }
 
-/// 島の右奥の空き地に並ぶ、集めた好物（スコア）。正解するたびに浮き氷から1つ飛んできて並ぶ。
+/// 光る「×N」の数字。常にカメラを向き、発光でブルームがにじむ。ほかの物に隠れないよう最前面に描く。
+final class PenguinCountLabel {
+    let node = SCNNode()
+    private let material = SCNMaterial()
+    private var shown: Int?
+
+    init(height: Float) {
+        let plane = SCNPlane(width: CGFloat(height * 2), height: CGFloat(height))
+        material.lightingModel = .constant
+        material.diffuse.contents = UIColor.clear
+        material.emission.intensity = 1.6
+        material.blendMode = .alpha
+        material.writesToDepthBuffer = false
+        material.readsFromDepthBuffer = false
+        plane.firstMaterial = material
+        node.geometry = plane
+        node.constraints = [SCNBillboardConstraint()]
+        node.renderingOrder = 50
+        node.castsShadow = false
+    }
+
+    func set(_ count: Int) {
+        guard count != shown else { return }
+        shown = count
+        let image = PenguinTextures.countLabel("×\(count)")
+        material.diffuse.contents = image
+        material.emission.contents = image
+    }
+}
+
+/// 集めた好物（スコア）。島の右奥の空き地に好物を1つ大きく置き、横に光る「×N」を出す。
+/// 正解するたびに浮き氷から1つ飛んできて、大きな好物に吸い込まれて数が増える。
 final class PenguinPantry {
-    /// 置き場所（島の面の高さ）。中央から外へ順に埋まる。岩とすべり台を避けた平らな所。
-    static let slots: [SIMD3<Float>] = [
-        SIMD3(0.41, 0.569, -2.30), SIMD3(0.64, 0.563, -2.30), SIMD3(0.18, 0.574, -2.30), SIMD3(0.52, 0.552, -2.09),
-        SIMD3(0.52, 0.575, -2.51), SIMD3(0.29, 0.557, -2.09), SIMD3(0.29, 0.584, -2.51), SIMD3(0.75, 0.545, -2.09),
-        SIMD3(0.75, 0.560, -2.51), SIMD3(0.06, 0.559, -2.09), SIMD3(0.06, 0.591, -2.51), SIMD3(0.87, 0.546, -2.30),
-        SIMD3(-0.05, 0.576, -2.30), SIMD3(0.41, 0.576, -2.72), SIMD3(0.64, 0.565, -2.72), SIMD3(0.18, 0.587, -2.72),
-        SIMD3(0.98, 0.535, -2.09), SIMD3(0.98, 0.544, -2.51), SIMD3(0.87, 0.550, -2.72), SIMD3(-0.05, 0.602, -2.72),
-    ]
+    /// 置き場所（島の面の高さ）。岩とすべり台を避けた平らな所の中央。
+    static let spot = SIMD3<Float>(0.4, 0.57, -2.3)
+    static let size: Float = 0.5
 
     let root = SCNNode()
     private var food: PenguinFood
-    /// 置いてある好物（着いたものだけ見える）。
-    private var items: [(node: SCNNode, landed: Bool)] = []
-    private var flights: [(index: Int, from: SIMD3<Float>, time: Float)] = []
-    /// 置き場がいっぱいになったら上に数を出す。
-    private let badge = SCNNode()
+    private var item = SCNNode()
+    private let label = PenguinCountLabel(height: 0.3)
+    private var flights: [(node: SCNNode, from: SIMD3<Float>, time: Float)] = []
+    /// 着いた数（表示している数）。
     private(set) var count = 0
+    private var bounce: Float = 10
     var onLand: () -> Void = {}
 
     init(food: PenguinFood) {
         self.food = food
-        let plane = SCNPlane(width: 0.5, height: 0.32)
-        let material = SCNMaterial()
-        material.lightingModel = .constant
-        plane.firstMaterial = material
-        badge.geometry = plane
-        badge.constraints = [SCNBillboardConstraint()]
-        badge.simdPosition = SIMD3(0.45, 1.05, -2.4)
-        badge.isHidden = true
-        root.addChildNode(badge)
+        label.node.simdPosition = Self.spot + SIMD3(0.42, 0.38, 0.1)
+        root.addChildNode(label.node)
+        setFood(food)
     }
 
     func setFood(_ food: PenguinFood) {
         self.food = food
-        for (i, item) in items.enumerated() {
-            item.node.removeFromParentNode()
-            items[i].node = makeItem(i)
-            items[i].node.isHidden = !item.landed
+        item.removeFromParentNode()
+        item = PenguinFoodModel.node(food, size: Self.size)
+        item.simdPosition = position
+        root.addChildNode(item)
+        for i in flights.indices {
+            flights[i].node.removeFromParentNode()
+            flights[i].node = PenguinFoodModel.node(food, size: food.size)
+            root.addChildNode(flights[i].node)
         }
+        refresh()
     }
 
-    /// 1つ増やす。置き場に空きがあれば from から飛んでくる。
+    /// 大きな好物の中心。
+    var position: SIMD3<Float> { Self.spot + SIMD3(0, PenguinFoodModel.halfHeight(food) * Self.size, 0) }
+
+    /// 1つ増やす：from から飛んできて、着いたら数が増える。
     func add(from: SIMD3<Float>) {
-        count += 1
-        if items.count < Self.slots.count {
-            let index = items.count
-            let node = makeItem(index)
-            node.isHidden = true
-            items.append((node, false))
-            flights.append((index, from, 0))
-        } else {
-            updateBadge()
-        }
+        let node = PenguinFoodModel.node(food, size: food.size)
+        node.simdPosition = from
+        root.addChildNode(node)
+        flights.append((node, from, 0))
     }
 
-    /// 置いた好物の中心。
-    func position(_ index: Int) -> SIMD3<Float> {
-        Self.slots[index] + SIMD3(0, PenguinFoodModel.halfHeight(food) * food.size, 0)
-    }
-
-    /// 画面上の点にいちばん近い、置いてある好物の中心。
+    /// 画面上の点が大きな好物の近くなら、その中心。まだ1つもないときは nil。
     func item(near point: CGPoint, radius: CGFloat, project: (SIMD3<Float>) -> CGPoint?) -> SIMD3<Float>? {
-        var best: (position: SIMD3<Float>, distance: CGFloat)?
-        for (i, item) in items.enumerated() where item.landed {
-            guard let screen = project(position(i)) else { continue }
-            let d = hypot(screen.x - point.x, screen.y - point.y)
-            if d < radius, d < (best?.distance ?? .infinity) { best = (position(i), d) }
-        }
-        return best?.position
+        guard count > 0, let screen = project(position), hypot(screen.x - point.x, screen.y - point.y) < radius else { return nil }
+        return position
     }
 
-    var firstLanded: SIMD3<Float>? { items.firstIndex { $0.landed }.map(position) }
+    var firstLanded: SIMD3<Float>? { count > 0 ? position : nil }
 
-    func update(_ dt: Float) {
+    func update(_ dt: Float, time: Float) {
         for f in flights.indices {
             flights[f].time += dt
-            let (index, from, time) = flights[f]
-            let node = items[index].node
-            let k = min(time / 0.7, 1)
-            let to = position(index)
-            node.isHidden = false
-            node.simdPosition = from + (to - from) * k + SIMD3(0, sin(k * .pi) * 0.9, 0)
-            node.simdEulerAngles = SIMD3(0, Self.yaw(index) + (1 - k) * 2 * .pi, 0)
-            node.simdScale = SIMD3(repeating: food.size * (0.6 + 0.4 * k))
+            let (node, from, t) = flights[f]
+            let k = min(t / 0.7, 1)
+            node.simdPosition = from + (position - from) * k + SIMD3(0, sin(k * .pi) * 0.9, 0)
+            node.simdEulerAngles = SIMD3(0, (1 - k) * 2 * .pi, 0)
+            node.simdScale = SIMD3(repeating: food.size * (1 - 0.5 * k))
             if k >= 1 {
-                items[index].landed = true
+                node.removeFromParentNode()
+                count += 1
+                bounce = 0
+                refresh()
                 onLand()
             }
         }
         flights.removeAll { $0.time >= 0.7 }
+        // 増えたときに弾み、ふだんはゆっくり左右に揺れる。
+        bounce += dt
+        let squash = 1 + 0.18 * exp(-bounce * 6) * sin(bounce * 20)
+        item.simdScale = SIMD3(Self.size / squash.squareRoot(), Self.size * squash, Self.size / squash.squareRoot())
+        item.simdEulerAngles = SIMD3(0, sin(time * 0.8) * 0.3, 0)
     }
 
-    private func makeItem(_ index: Int) -> SCNNode {
-        let node = PenguinFoodModel.node(food, size: food.size)
-        node.simdPosition = position(index)
-        node.simdEulerAngles = SIMD3(0, Self.yaw(index), 0)
-        root.addChildNode(node)
-        return node
-    }
-
-    /// 正面（カメラ側）を向いたまま、少しずつ向きを散らす。
-    private static func yaw(_ index: Int) -> Float { sin(Float(index) * 2.4) * 0.45 }
-
-    private func updateBadge() {
-        badge.isHidden = count <= Self.slots.count
-        let image = PenguinTextures.sign("×\(count)", dots: 0, highlight: true, aspect: 1.6)
-        badge.geometry?.firstMaterial?.diffuse.contents = image
+    private func refresh() {
+        item.isHidden = count == 0
+        label.node.isHidden = count == 0
+        label.set(count)
     }
 }
 
@@ -186,12 +192,14 @@ final class PenguinFeeder {
 
     init(food: PenguinFood) {
         self.food = food
+        label.node.isHidden = true
+        root.addChildNode(label.node)
     }
 
     var heldPosition: SIMD3<Float>? { held?.simdPosition }
     /// 運ぶ好物の大きさ。顔のアップではカメラが近いので小さめにする。
     var closeUp = false
-    private var heldSize: Float { food.size * (closeUp ? 0.55 : 1.25) }
+    private var heldSize: Float { food.size * (closeUp ? 0.9 : 1.25) }
 
     func setFood(_ food: PenguinFood) {
         self.food = food
@@ -200,13 +208,15 @@ final class PenguinFeeder {
         if wasShown { showFloats(true) }
     }
 
-    /// 顔のアップで浮かぶ好物の数と大きさ。
-    private static let floatCount = 3
-    private var floatSize: Float { food.size * 0.5 }
+    /// 顔のアップで浮かぶ好物（1つ）と、その横の光る「×N」。
+    private static let floatCount = 1
+    private var floatSize: Float { food.size }
+    private let label = PenguinCountLabel(height: 0.13)
 
     func showFloats(_ on: Bool) {
         floats.forEach { $0.node.removeFromParentNode() }
         floats = []
+        label.node.isHidden = !on
         guard on else { return }
         for _ in 0..<Self.floatCount {
             let node = PenguinFoodModel.node(food, size: floatSize)
@@ -271,8 +281,10 @@ final class PenguinFeeder {
         sinceBite = 10
     }
 
-    /// mouth は口（食べる位置）、spots は浮かぶ好物の置き場所（画面の下の方、顔の手前）。
-    func update(_ dt: Float, time: Float, mouth: SIMD3<Float>, spots: [SIMD3<Float>]) {
+    /// mouth は口（食べる位置）、spots は浮かぶ好物の置き場所（画面の下の方、顔の手前）、count は集めた数。
+    func update(_ dt: Float, time: Float, mouth: SIMD3<Float>, spots: [SIMD3<Float>], count: Int) {
+        label.set(count)
+        if let spot = spots.first { label.node.simdPosition = spot + SIMD3(floatSize * 0.9 + 0.08, 0.04, 0) }
         sinceBite += dt
         if let held {
             held.simdPosition += (heldTarget - held.simdPosition) * min(1, dt * 14)

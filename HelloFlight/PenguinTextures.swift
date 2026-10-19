@@ -107,6 +107,22 @@ enum PenguinTextures {
         }
     }
 
+    /// 光る数字「×N」の文字面（透明地に白い文字、琥珀色の太い縁）。
+    static func countLabel(_ text: String) -> UIImage {
+        image(256, 128, opaque: false) { _, rect in
+            let font = UIFont(name: PenguinFonts.name, size: 96) ?? .systemFont(ofSize: 96, weight: .black)
+            let style = NSMutableParagraphStyle()
+            style.alignment = .center
+            let outline = NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: style, .foregroundColor: color(0xf0b03d),
+                                                                       .strokeColor: color(0xf0b03d), .strokeWidth: -24])
+            let fill = NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: style, .foregroundColor: UIColor.white])
+            let height = fill.boundingRect(with: rect.size, options: [.usesLineFragmentOrigin], context: nil).height
+            let box = CGRect(x: 0, y: (rect.height - height) / 2, width: rect.width, height: height)
+            outline.draw(in: box)
+            fill.draw(in: box)
+        }
+    }
+
     static func heart() -> UIImage {
         image(64, 64, opaque: false) { cg, _ in
             let path = CGMutablePath()

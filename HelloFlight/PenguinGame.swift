@@ -84,8 +84,8 @@ final class PenguinGame {
     private static let titleElevation: Float = 0.28
     private static let characterKey = "penguin.character"
     private static let tutorialKey = "penguin.tutorialDone"
-    /// 食べさせるときの顔のアップ。
-    private static let feedDistance: Float = 1.2
+    /// 食べさせるときのアップ。縦長の画面でもキャラの横幅（約0.8m）が収まる距離にする。
+    private static let feedHalfWidth: Float = 0.42
     private static let feedElevation: Float = 0.25
 
     private static let gravity: Float = 7
@@ -276,7 +276,7 @@ final class PenguinGame {
         guard let held = feeder.heldPosition else { return }
         let p = pointOnFeedPlane(point) ?? held
         // 顔のアップでは浮かぶ好物が口の近くにあるので、口のすぐそばで離したときだけ食べる。
-        let eat = canFeed && (hud.feeding ? simd_distance(p, mouthPosition) < 0.14
+        let eat = canFeed && (hud.feeding ? simd_distance(p, mouthPosition) < 0.2
                                           : min(simd_distance(p, mouthPosition), simd_distance(p, penguinPosition)) < 0.6)
         feeder.release(eat: eat)
         if eat, !hud.feeding {
@@ -319,10 +319,10 @@ final class PenguinGame {
     /// 指の位置を、キャラの口を通りカメラに向いた面へ写す（運んでいる好物の位置）。
     private func pointOnFeedPlane(_ point: CGPoint) -> SIMD3<Float>? { pointOnPlane(point, through: mouthPosition) }
 
-    /// 顔のアップで好物を浮かべる場所：画面の下の方の左・中央・右（顔の少し手前）。画面の縦横比によらず指が届く。
+    /// アップで好物を浮かべる場所：画面の下の方の中央（顔の少し手前）。画面の縦横比によらず指が届く。
     private func floatSpots() -> [SIMD3<Float>] {
         let through = mouthPosition - world.cameraNode.simdWorldFront * 0.2
-        return [CGPoint(x: 0.2, y: 0.76), CGPoint(x: 0.5, y: 0.83), CGPoint(x: 0.8, y: 0.76)].compactMap { spot in
+        return [CGPoint(x: 0.42, y: 0.8)].compactMap { spot in
             pointOnPlane(CGPoint(x: spot.x * viewSize.width, y: spot.y * viewSize.height), through: through)
         }
     }
@@ -408,9 +408,9 @@ final class PenguinGame {
         updateMarker()
         updateCamera(dt)
         updateShading()
-        pantry.update(dt)
+        pantry.update(dt, time: time)
         feeder.closeUp = hud.feeding
-        feeder.update(dt, time: time, mouth: mouthPosition, spots: hud.feeding ? floatSpots() : [])
+        feeder.update(dt, time: time, mouth: mouthPosition, spots: hud.feeding ? floatSpots() : [], count: pantry.count)
         updateTutorial()
         critters.update(dt)
         // ときどき海の生き物が出てくる。
@@ -689,11 +689,12 @@ final class PenguinGame {
         // 食べさせるときは、台の上のキャラの顔を正面からアップで映す。
         let feeding = !title && hud.feeding
         let follow = Self.baseTarget + (penguinPosition - Self.baseTarget) * SIMD3(0.06, 0.05, 0.05)
-        let goal = title ? Self.titleTarget : (feeding ? Self.standPosition + SIMD3(0, 0.16, 0) : follow)
+        let goal = title ? Self.titleTarget : (feeding ? Self.standPosition + SIMD3(0, 0.06, 0) : follow)
         let ease = min(1, dt * 2.5)
         cameraTarget += (goal - cameraTarget) * ease
         let wide = Float(viewSize.width / max(viewSize.height, 1))
-        let distance = title ? Self.titleDistance : (feeding ? Self.feedDistance : Self.distance * (wide > 0.8 ? 0.82 : 1))
+        let feedDistance = max(1.4, Self.feedHalfWidth / (tan(Float(world.camera.fieldOfView) * .pi / 360) * min(wide, 1)))
+        let distance = title ? Self.titleDistance : (feeding ? feedDistance : Self.distance * (wide > 0.8 ? 0.82 : 1))
         cameraDistance += (distance - cameraDistance) * ease
         cameraElevation += ((title ? Self.titleElevation : (feeding ? Self.feedElevation : Self.elevation)) - cameraElevation) * ease
         orbit = hud.autoOrbit && !feeding ? orbit + dt : orbit * max(0, 1 - dt * 2)
@@ -710,6 +711,8 @@ final class PenguinGame {
         } else if !title, phase == .waiting || phase == .flop {
             subject = mix(penguinPosition, SIMD3(0, 0.4, 0.8), t: 0.75)
         }
+        // アップではぼかさない（近いと被写界深度が浅く、顔までぼける）。
+        world.setDepthOfField(hud.depthOfField && !feeding)
         let target = simd_distance(world.cameraNode.simdPosition, subject)
         focusDistance += (target - focusDistance) * min(1, dt * 4)
         world.camera.focusDistance = CGFloat(focusDistance)
