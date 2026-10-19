@@ -25,7 +25,8 @@ from PIL import Image, ImageDraw
 # ratio: simplification target per material (default for the rest). groups: material -> mesh in the game file
 # (default "body"; eyes blink, the rest of the face parts ride on the head). rig: head pivot, right arm pivot
 # and the head weight, matching PenguinRig in PenguinWorld.swift. armMask (optional) limits the arm weight to
-# the region the app used before, for arms that lie along the body.
+# the region the app used before, for arms that lie along the body; armWeight (optional) replaces the surface
+# distance weight altogether.
 def smooth(a, b, x):
     t = np.clip((x - a) / (b - a), 0, 1)
     return t * t * (3 - 2 * t)
@@ -50,8 +51,9 @@ CHARACTERS = {
                 "groups": {"Unicorn | Left glossy eye": "eyeL", "Unicorn | Right glossy eye": "eyeR", "Unicorn | Left soft brow": "face",
                            "Unicorn | Right soft brow": "face"},
                 "head": (0, 0.36, 0), "arm": (0.11, 0.31, 0.02), "headWeight": lambda p: smooth(0.33, 0.39, p[:, 1]),
-                # The hooves rest against the belly; keep the belly below them still.
-                "armMask": lambda p: smooth(0.12, 0.16, p[:, 1])},
+                # The forelegs are joined to the belly along their whole inner side, so a leg that moves on its own
+                # pulls the belly out like a web. The side of the body moves with the leg instead (the app's weights).
+                "armWeight": lambda p: smooth(0.11, 0.15, np.abs(p[:, 0])) * smooth(0.14, 0.2, p[:, 1]) * (1 - smooth(0.33, 0.39, p[:, 1]))},
 }
 BASE, MAPS = 1024, 512
 
@@ -181,10 +183,12 @@ def arm_weights(p, idx, pivot, side):
 
 p, n, uv, idx = meshes["body"]
 arm = np.zeros(len(p))
-for side in (-1, 1):
+for side in (-1, 1) if "armWeight" not in config else ():
     w, tip, shoulder = arm_weights(p, idx, config["arm"], side)
     arm = np.maximum(arm, w)
     print(f"arm {side:+d}: tip {tip.round(3)}, shoulder at {shoulder:.3f} m along the surface")
+if "armWeight" in config:
+    arm = config["armWeight"](p)
 if "armMask" in config:
     arm *= config["armMask"](p)
 head = config["headWeight"](p) * (1 - arm)
