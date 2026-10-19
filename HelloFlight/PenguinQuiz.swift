@@ -2,6 +2,8 @@ import Foundation
 
 enum PenguinMode: String, CaseIterable, Identifiable {
     case math, hiragana, katakana, alphabet
+    /// まぜこぜ：1問ごとに、ほかの4つからランダムに出す。
+    case mix
     var id: String { rawValue }
 
     var title: String {
@@ -10,6 +12,7 @@ enum PenguinMode: String, CaseIterable, Identifiable {
         case .hiragana: "ひらがな"
         case .katakana: "カタカナ"
         case .alphabet: "えいご"
+        case .mix: "まぜこぜ"
         }
     }
 
@@ -19,6 +22,7 @@ enum PenguinMode: String, CaseIterable, Identifiable {
         case .hiragana: "あいう"
         case .katakana: "アイウ"
         case .alphabet: "ABC"
+        case .mix: "1あA"
         }
     }
 }
@@ -81,6 +85,7 @@ enum PenguinQuiz {
         case .hiragana: return letters(hiragana, pool: stars < 6 ? 10 : hiragana.count, english: false, avoiding: previous)
         case .katakana: return letters(katakana, pool: stars < 6 ? 10 : katakana.count, english: false, avoiding: previous)
         case .alphabet: return letters(alphabet, pool: stars < 6 ? 8 : alphabet.count, english: true, avoiding: previous)
+        case .mix: return make([.math, .hiragana, .katakana, .alphabet].randomElement() ?? .math, stars: stars, food: food, avoiding: previous)
         }
     }
 

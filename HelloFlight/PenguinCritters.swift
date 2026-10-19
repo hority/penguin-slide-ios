@@ -10,6 +10,8 @@ final class PenguinCritters {
     private let world: PenguinWorld
     private let audio: PenguinAudio
     private let whale = SCNNode()
+    /// 頭のてっぺんの噴気孔（テクスチャの穴の位置）。潮はクジラと一緒に動くように子ノードから出す。
+    private let blowhole = SCNNode()
     /// クジラの尾びれを曲げるシェーダーの材質。
     private let whaleMaterial = PenguinRig.material("whale")
     private static let tailPivot = SIMD3<Float>(0, 0, -0.75)
@@ -32,6 +34,8 @@ final class PenguinCritters {
             whale.geometry = PenguinRig.weighted(body) { p in SIMD2(PenguinRig.smooth(-0.55, -1.2, p.z), 0) }
             whale.geometry?.firstMaterial = whaleMaterial
         }
+        blowhole.simdPosition = SIMD3(0, 0.66, 0.77)
+        whale.addChildNode(blowhole)
         let dolphin = PenguinAsset.geometries("dolphin")["body"], fish = PenguinAsset.geometries("flyingfish")["body"]
         dolphin?.firstMaterial = PenguinAsset.material("dolphin")
         fish?.firstMaterial = PenguinAsset.material("flyingfish")
@@ -125,9 +129,9 @@ final class PenguinCritters {
         if s > 0.08 { once(0) { audio.play(.whale, volume: 0.9) } }
         if s > 0.3 {
             once(1) {
-                let blowhole = position + whale.simdOrientation.act(SIMD3(0, 0.62, 0.5))
                 guard let burst = spray.copy() as? SCNParticleSystem else { return }
-                world.scene.addParticleSystem(burst, transform: SCNMatrix4MakeTranslation(blowhole.x, blowhole.y, blowhole.z))
+                blowhole.removeAllParticleSystems()
+                blowhole.addParticleSystem(burst)
                 audio.play(.splash, volume: 0.5)
             }
         }

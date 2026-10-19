@@ -34,6 +34,8 @@ final class PenguinHUD {
     /// 説明の指の位置（画面上）。to があれば from から to へ運ぶ動き、なければ from をタップする動き。
     var tutorialFrom: CGPoint?
     var tutorialTo: CGPoint?
+    /// シェーダーなどの準備が済んで、3Dの画面を見せられる（それまでは読み込み画面）。
+    var ready = false
 }
 
 /// ゲームの進行。タップした浮き氷へ、ペンギンがすべり台からジャンプする。

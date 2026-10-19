@@ -25,6 +25,11 @@ final class PenguinRenderView: UIView, UIGestureRecognizerDelegate {
         sceneView.preferredFramesPerSecond = 60
         sceneView.isUserInteractionEnabled = false
         addSubview(sceneView)
+        // 最初の数フレームでシェーダーのコンパイルに引っかからないよう、先にまとめて準備してから読み込み画面を消す
+        // （準備が終わらない場合も数秒で見せる）。
+        let hud = game.hud
+        sceneView.prepare([game.world.scene]) { _ in DispatchQueue.main.async { hud.ready = true } }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 6) { hud.ready = true }
         addGestureRecognizer(UITapGestureRecognizer(target: self, action: #selector(tapped(_:))))
         // 好物をつまんで運ぶ。好物の上で触れたときだけ始まる（それ以外はタップとして扱う）。
         let pan = UIPanGestureRecognizer(target: self, action: #selector(panned(_:)))

@@ -152,16 +152,21 @@ private struct PenguinTitleView: View {
                 .animation(.spring(duration: 0.3), value: game.hud.character)
                 Text("どれで あそぶ？").font(.penguin(20)).foregroundStyle(Color.penguinInk)
                     .padding(.top, 4)
-                LazyVGrid(columns: [GridItem(.fixed(124)), GridItem(.fixed(124))], spacing: 10) {
-                    ForEach(Array(PenguinMode.allCases.enumerated()), id: \.element) { index, mode in
-                        Button { game.start(mode) } label: {
-                            VStack(spacing: 2) {
-                                Text(mode.badge).font(.penguin(mode == .math ? 30 : 26))
-                                Text(mode.title).font(.penguin(16))
+                // 3つと2つの2段（いちばん小さいiPhoneの幅にも収まる大きさ）。まぜこぜは色を変えて目立たせる。
+                VStack(spacing: 8) {
+                    ForEach([[PenguinMode.math, .hiragana, .katakana], [.alphabet, .mix]], id: \.self) { row in
+                        HStack(spacing: 10) {
+                            ForEach(row) { mode in
+                                Button { game.start(mode) } label: {
+                                    VStack(spacing: 2) {
+                                        Text(mode.badge).font(.penguin(mode == .math ? 28 : 24))
+                                        Text(mode.title).font(.penguin(15))
+                                    }
+                                }
+                                .buttonStyle(PenguinRoundButton(color: modeColor(mode), size: 96))
+                                .accessibilityLabel(mode.title)
                             }
                         }
-                        .buttonStyle(PenguinRoundButton(color: index % 3 == 0 ? .penguinAmber : .penguinMint, size: 106))
-                        .accessibilityLabel(mode.title)
                     }
                 }
             }
@@ -172,6 +177,37 @@ private struct PenguinTitleView: View {
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 6)
+    }
+}
+
+private func modeColor(_ mode: PenguinMode) -> Color {
+    switch mode {
+    case .math, .katakana: .penguinAmber
+    case .hiragana, .alphabet: .penguinMint
+    case .mix: Color(red: 1, green: 0.66, blue: 0.76)
+    }
+}
+
+/// 起動時の読み込み画面（起動画面と同じ空の色）。モデルの読み込みとシェーダーの準備が終わるまで出す。
+struct PenguinLoadingView: View {
+    @State private var hop = false
+
+    var body: some View {
+        let character = UserDefaults.standard.string(forKey: "penguin.character") ?? PenguinCharacter.penguin.rawValue
+        VStack(spacing: 14) {
+            if let logo = PenguinArt.image("title") {
+                Image(uiImage: logo).resizable().interpolation(.high).scaledToFit()
+                    .frame(maxWidth: 360, maxHeight: 200)
+                    .padding(.horizontal, 16)
+            }
+            PenguinArt.view(character, size: 96)
+                .offset(y: hop ? -14 : 0)
+                .animation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true), value: hop)
+            Text("じゅんびちゅう…").font(.penguin(20)).foregroundStyle(Color.penguinInk)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color("LaunchBackground").ignoresSafeArea())
+        .onAppear { hop = true }
     }
 }
 
