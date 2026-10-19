@@ -85,6 +85,9 @@ final class PenguinGame {
             world.penguin.build(saved)
         }
         cameraTarget = Self.titleTarget
+        #if DEBUG
+        if ProcessInfo.processInfo.arguments.contains("-demo") { demoTime = 0 }
+        #endif
         step(0)
     }
 
@@ -170,16 +173,20 @@ final class PenguinGame {
         }
         guard phase == .waiting, swapTime == nil else { return }
         if let index = floe(at: point) {
-            chosen = index
-            phase = .flop
-            phaseTime = 0
-            headFirst = Double.random(in: 0...1) < 0.1
-            selectTime = 0
-            audio.play(.pi)
-            world.burst(world.sparkleTemplate, at: world.floes[index].board.simdWorldPosition, scale: 0.4)
+            select(index)
         } else {
             hop()
         }
+    }
+
+    private func select(_ index: Int) {
+        chosen = index
+        phase = .flop
+        phaseTime = 0
+        headFirst = Double.random(in: 0...1) < 0.1
+        selectTime = 0
+        audio.play(.pi)
+        world.burst(world.sparkleTemplate, at: world.floes[index].board.simdWorldPosition, scale: 0.4)
     }
 
     /// 浮き氷以外をタップしたとき：その場で小さく跳ねる。たまに面白い音。
@@ -203,6 +210,50 @@ final class PenguinGame {
         guard let best, best.distance < max(80, viewSize.width * 0.24) else { return nil }
         return best.index
     }
+
+    #if DEBUG
+    // MARK: - Demo
+
+    /// プロモ動画の収録用（シミュレータで -demo を付けて起動）。キャラを選び、ひらがな→かずを自動で遊ぶ。
+    private var demoTime: Float = -1
+    private var demoRound = 0
+    private var demoAnswers = 0
+
+    private func demoStep(_ dt: Float) {
+        guard demoTime >= 0 else { return }
+        demoTime += dt
+        switch hud.screen {
+        case .title:
+            let modes: [PenguinMode] = [.hiragana, .math]
+            guard demoRound < modes.count else { return }
+            if demoRound == 0 {
+                let picks: [(Float, PenguinCharacter)] = [(1.5, .octopus), (2.7, .ghost), (3.9, .unicorn), (5.1, .penguin)]
+                for (at, character) in picks where demoTime - dt < at && demoTime >= at { selectCharacter(character) }
+            }
+            if demoTime > (demoRound == 0 ? 6.5 : 2) {
+                demoTime = 0
+                start(modes[demoRound])
+            }
+        case .playing:
+            guard phase == .waiting, swapTime == nil, let question = hud.question else {
+                demoTime = 0
+                return
+            }
+            guard demoTime > 2.2 else { return }
+            demoTime = 0
+            if demoAnswers == 4 {
+                demoAnswers = 0
+                demoRound += 1
+                goHome()
+                return
+            }
+            // ひらがなの2問目はわざと外して、ヒントの演出も映す。
+            let wrong = demoRound == 0 && demoAnswers == 1
+            select(wrong ? (question.answer + 1) % question.choices.count : question.answer)
+            demoAnswers += 1
+        }
+    }
+    #endif
 
     // MARK: - Projection
 
@@ -229,6 +280,9 @@ final class PenguinGame {
     // MARK: - Frame update
 
     func step(_ dt: Float) {
+        #if DEBUG
+        demoStep(dt)
+        #endif
         time += dt
         phaseTime += dt
         landTime += dt
