@@ -165,6 +165,7 @@ final class PenguinPantry {
         count -= 1
         bounce = 0
         refresh()
+        save()
     }
 
     func update(_ dt: Float, time: Float) {
@@ -180,6 +181,7 @@ final class PenguinPantry {
                 count += 1
                 bounce = 0
                 refresh()
+                save()
                 onLand()
             }
         }
@@ -191,11 +193,21 @@ final class PenguinPantry {
         item.simdEulerAngles = SIMD3(0, sin(time * 0.8) * 0.3, 0)
     }
 
+    /// 集めた数は次に起動したときも続く。
+    private static let countKey = "penguin.food"
+
+    func restore() {
+        count = max(0, UserDefaults.standard.integer(forKey: Self.countKey))
+        refresh()
+    }
+
     private func refresh() {
         item.isHidden = count == 0
         label.node.isHidden = count == 0
         label.set(count)
     }
+
+    private func save() { UserDefaults.standard.set(count, forKey: Self.countKey) }
 }
 
 /// ドラッグで食べさせる仕組み。指で運ぶ好物（コピー）、口へ入る演出、顔のアップで顔のまわりに浮かぶ好物。

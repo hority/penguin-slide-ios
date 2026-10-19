@@ -108,11 +108,33 @@ final class PenguinGame {
         world.setMarker(saved.food)
         world.scene.rootNode.addChildNode(pantry.root)
         world.scene.rootNode.addChildNode(feeder.root)
+        pantry.restore()
         pantry.onLand = { [weak self] in self?.audio.play(.pop, volume: 0.7) }
         feeder.onBite = { [weak self] in self?.bite() }
         cameraTarget = Self.titleTarget
         step(0)
+        #if DEBUG
+        startScreenshotScene()
+        #endif
     }
+
+    #if DEBUG
+    /// App Store用のスクリーンショット（ci/screenshots.sh）。シミュレータで「-shot quiz」「-shot feed」を付けて起動すると、
+    /// その場面まで自動で進める（「-shotMode math」で問題の種類、キャラや集めた数は UserDefaults のキーを起動引数で渡す）。
+    private func startScreenshotScene() {
+        let defaults = UserDefaults.standard
+        guard let shot = defaults.string(forKey: "shot"), shot != "title" else { return }
+        let mode = defaults.string(forKey: "shotMode").flatMap(PenguinMode.init(rawValue:)) ?? .hiragana
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1) { [self] in
+            start(mode)
+            guard shot == "feed" else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) { [self] in
+                hud.feeding = true
+                feeder.showFloats(true)
+            }
+        }
+    }
+    #endif
 
     /// タイトル画面のカメラの注視点。キャラが画面の上の方に大きく映るよう、少し下を見る。
     /// タイトル：上の大きなロゴと下のカードの間にキャラが収まるよう、少し引いて注視点を上げる。
