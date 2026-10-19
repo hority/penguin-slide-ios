@@ -326,10 +326,13 @@ final class PenguinFeeder {
                 // 取られている間は隠し、離されてから0.5秒でぽんと出てくる。
                 let next = heldFloat == i ? 0 : gone + dt
                 floats[i].gone = next > 0.5 ? nil : next
+                node.isHidden = true
                 node.simdScale = SIMD3(repeating: 0.01)
             } else if empty {
+                node.isHidden = true
                 node.simdScale = SIMD3(repeating: 0.01)
             } else {
+                node.isHidden = false
                 node.simdScale += (SIMD3(repeating: floatSize) - node.simdScale) * min(1, dt * 12)
             }
         }

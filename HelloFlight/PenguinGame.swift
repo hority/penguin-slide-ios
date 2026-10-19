@@ -276,8 +276,9 @@ final class PenguinGame {
         guard feeder.held != nil else { return }
         let tip = CGPoint(x: point.x, y: point.y - Self.heldLift)
         func near(_ p: SIMD3<Float>, _ radius: CGFloat) -> Bool { project(p).map { hypot($0.x - tip.x, $0.y - tip.y) < radius } ?? false }
-        let radius = max(70, viewSize.width * (hud.feeding ? 0.2 : 0.16))
-        let eat = canFeed && (near(mouthPosition, radius) || (!hud.feeding && near(penguinPosition, radius)))
+        // アップではキャラが大きく映るので、顔か体のあたりで離せば食べる（浮かぶ好物はそれより下にある）。
+        let radius = max(70, viewSize.width * (hud.feeding ? 0.3 : 0.16))
+        let eat = canFeed && (near(mouthPosition, radius) || near(penguinPosition, radius))
         feeder.release(eat: eat)
         if eat, !hud.feeding {
             hud.feeding = true
@@ -721,8 +722,8 @@ final class PenguinGame {
         } else if !title, phase == .waiting || phase == .flop {
             subject = mix(penguinPosition, SIMD3(0, 0.4, 0.8), t: 0.75)
         }
-        // アップではぼかさない（近いと被写界深度が浅く、顔までぼける）。
-        world.setDepthOfField(hud.depthOfField && !feeding)
+        // アップと、カメラのすぐ前で好物を運ぶ間はぼかさない（ピントの外で大きくぼけてしまう）。
+        world.setDepthOfField(hud.depthOfField && !feeding && feeder.held == nil)
         let target = simd_distance(world.cameraNode.simdPosition, subject)
         focusDistance += (target - focusDistance) * min(1, dt * 4)
         world.camera.focusDistance = CGFloat(focusDistance)

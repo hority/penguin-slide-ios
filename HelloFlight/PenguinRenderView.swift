@@ -121,6 +121,6 @@ struct PenguinGameView: UIViewRepresentable {
     func makeUIView(context: Context) -> PenguinRenderView { PenguinRenderView(game: game) }
 
     func updateUIView(_ view: PenguinRenderView, context: Context) {
-        game.world.setDepthOfField(game.hud.depthOfField && !game.hud.feeding)
+        game.world.setDepthOfField(game.hud.depthOfField && !game.hud.feeding)  // ドラッグ中はゲームの更新側で切る
     }
 }
