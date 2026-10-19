@@ -17,7 +17,7 @@ The **Build iOS** workflow is manual only. No macOS jobs run automatically on pu
 
 ## Release signing
 
-This repository currently includes only a manual unsigned build workflow. TestFlight signing remains in the existing private release setup. No Apple credentials or signing material are stored here.
+The manual **Upload to TestFlight** workflow reads existing encrypted signing assets from a separate private repository. The owner must configure its protected environment before use; no Apple credentials or signing material are committed here. See [release setup](docs/RELEASING.md).
 
 ## Assets and licensing
 

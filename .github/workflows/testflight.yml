@@ -1,0 +1,57 @@
+name: Upload to TestFlight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apple-signing
+  cancel-in-progress: false
+
+jobs:
+  upload:
+    name: Sign and upload existing app
+    if: github.repository == 'hority/penguin-slide-ios' && github.ref == 'refs/heads/master' && github.event_name == 'workflow_dispatch'
+    environment: testflight
+    runs-on: macos-26
+    timeout-minutes: 30
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      APPLE_TEAM_ID: ${{ vars.APPLE_TEAM_ID }}
+      APP_STORE_CONNECT_KEY_ID: ${{ vars.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ vars.APP_STORE_CONNECT_ISSUER_ID }}
+      MATCH_GIT_URL: ${{ vars.MATCH_GIT_URL }}
+      MATCH_GIT_BRANCH: signing
+      FASTLANE_SKIP_UPDATE_CHECK: '1'
+      FASTLANE_OPT_OUT_USAGE: '1'
+      FASTLANE_DISABLE_COLORS: '1'
+      CI: 'true'
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Validate settings
+        run: bash ci/validate-apple-settings.sh
+        env:
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+          SIGNING_GIT_TOKEN: ${{ secrets.SIGNING_GIT_TOKEN }}
+      - uses: ruby/setup-ruby@651ff0d62c5c79bed6d53ec518387aae20e72c1a # v1
+        with:
+          bundler-cache: true
+      - name: Configure temporary credentials
+        run: bash ci/prepare-apple-auth.sh
+        env:
+          APP_STORE_CONNECT_PRIVATE_KEY: ${{ secrets.APP_STORE_CONNECT_PRIVATE_KEY }}
+          SIGNING_GIT_TOKEN: ${{ secrets.SIGNING_GIT_TOKEN }}
+      - name: Build, sign and upload
+        run: bundle exec fastlane ios beta
+        env:
+          MATCH_PASSWORD: ${{ secrets.MATCH_PASSWORD }}
+      - name: Remove temporary signing files
+        if: always()
+        run: |
+          rm -f "$RUNNER_TEMP/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8"
+          rm -rf build

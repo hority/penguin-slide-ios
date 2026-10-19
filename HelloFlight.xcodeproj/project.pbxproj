@@ -23,6 +23,7 @@
 		E10000000000000000000097 /* Models in Resources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000097 /* Models */; };
 		E10000000000000000000096 /* Sounds in Resources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000096 /* Sounds */; };
 		E10000000000000000000031 /* PenguinStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = E20000000000000000000031 /* PenguinStage.swift */; };
+		F10000000000000000000001 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = F20000000000000000000001 /* PrivacyInfo.xcprivacy */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +45,7 @@
 		E20000000000000000000097 /* Models */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Models; sourceTree = "<group>"; };
 		E20000000000000000000096 /* Sounds */ = {isa = PBXFileReference; lastKnownFileType = folder; path = Sounds; sourceTree = "<group>"; };
 		E20000000000000000000031 /* PenguinStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PenguinStage.swift; sourceTree = "<group>"; };
+		F20000000000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -52,7 +54,7 @@
 
 /* Begin PBXGroup section */
 		A40000000000000000000001 = {isa = PBXGroup; children = (A40000000000000000000002 /* HelloFlight */, A40000000000000000000003 /* Products */, ); sourceTree = "<group>"; };
-		A40000000000000000000002 /* HelloFlight */ = {isa = PBXGroup; children = (A20000000000000000000001 /* HelloFlightApp.swift */, A20000000000000000000003 /* Assets.xcassets */, E20000000000000000000000, E20000000000000000000002, E20000000000000000000003, E20000000000000000000004, E20000000000000000000005, E20000000000000000000006, E20000000000000000000007, E20000000000000000000008, E20000000000000000000011, E20000000000000000000099, E20000000000000000000030, E20000000000000000000098, E20000000000000000000097, E20000000000000000000096, E20000000000000000000031,); path = HelloFlight; sourceTree = "<group>"; };
+		A40000000000000000000002 /* HelloFlight */ = {isa = PBXGroup; children = (F20000000000000000000001, A20000000000000000000001 /* HelloFlightApp.swift */, A20000000000000000000003 /* Assets.xcassets */, E20000000000000000000000, E20000000000000000000002, E20000000000000000000003, E20000000000000000000004, E20000000000000000000005, E20000000000000000000006, E20000000000000000000007, E20000000000000000000008, E20000000000000000000011, E20000000000000000000099, E20000000000000000000030, E20000000000000000000098, E20000000000000000000097, E20000000000000000000096, E20000000000000000000031,); path = HelloFlight; sourceTree = "<group>"; };
 		A40000000000000000000003 /* Products */ = {isa = PBXGroup; children = (A20000000000000000000004 /* HelloFlight.app */, ); name = Products; sourceTree = "<group>"; };
 /* End PBXGroup section */
 
@@ -88,7 +90,7 @@
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		A70000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (A10000000000000000000003 /* Assets.xcassets in Resources */, E10000000000000000000098, E10000000000000000000097, E10000000000000000000096, E10000000000000000000099, E10000000000000000000008, E10000000000000000000011,); runOnlyForDeploymentPostprocessing = 0; };
+		A70000000000000000000002 /* Resources */ = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (F10000000000000000000001, A10000000000000000000003 /* Assets.xcassets in Resources */, E10000000000000000000098, E10000000000000000000097, E10000000000000000000096, E10000000000000000000099, E10000000000000000000008, E10000000000000000000011,); runOnlyForDeploymentPostprocessing = 0; };
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */

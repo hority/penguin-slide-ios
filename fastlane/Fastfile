@@ -1,0 +1,75 @@
+default_platform(:ios)
+
+# Keep the existing app identity so TestFlight upgrades remain compatible.
+BUNDLE_ID = 'com.hority.helloflight'
+PROJECT_ROOT = File.expand_path('..', __dir__)
+
+def connect_api_key
+  app_store_connect_api_key(
+    key_id: ENV.fetch('APP_STORE_CONNECT_KEY_ID'),
+    issuer_id: ENV.fetch('APP_STORE_CONNECT_ISSUER_ID'),
+    key_filepath: ENV.fetch('APP_STORE_CONNECT_KEY_PATH'),
+    duration: 1200,
+    in_house: false
+  )
+end
+
+platform :ios do
+  before_all do
+    setup_ci(set_default_keychain: false) if is_ci
+  end
+
+  desc 'Archive using existing private signing assets and upload to TestFlight'
+  lane :beta do
+    key = connect_api_key
+    match(
+      type: 'appstore',
+      app_identifier: [BUNDLE_ID],
+      team_id: ENV.fetch('APPLE_TEAM_ID'),
+      api_key: key,
+      storage_mode: 'git',
+      git_url: ENV.fetch('MATCH_GIT_URL'),
+      git_branch: ENV.fetch('MATCH_GIT_BRANCH', 'signing'),
+      clone_branch_directly: true,
+      readonly: true,
+      skip_docs: true,
+      generate_apple_certs: false
+    )
+
+    # A new repository's run counter restarts at 1. Continue after the existing
+    # TestFlight build instead, avoiding duplicate/lower build numbers.
+    previous = latest_testflight_build_number(
+      api_key: key, app_identifier: BUNDLE_ID,
+      version: get_version_number(xcodeproj: File.join(PROJECT_ROOT, 'HelloFlight.xcodeproj'), target: 'HelloFlight'),
+      initial_build_number: 0
+    )
+    build_number = "#{previous.to_s.split('.').first.to_i + 1}.1"
+    team_id = ENV.fetch('APPLE_TEAM_ID')
+    UI.user_error!('Invalid Team ID') unless team_id.match?(/\A[A-Z0-9]{10}\z/)
+    profile_name = "match AppStore #{BUNDLE_ID}"
+    ipa = build_app(
+      project: File.join(PROJECT_ROOT, 'HelloFlight.xcodeproj'),
+      scheme: 'HelloFlight',
+      configuration: 'Release',
+      clean: true,
+      archive_path: File.join(PROJECT_ROOT, 'build', 'HelloFlight.xcarchive'),
+      output_directory: File.join(PROJECT_ROOT, 'build'),
+      output_name: 'HelloFlight.ipa',
+      buildlog_path: File.join(PROJECT_ROOT, 'build', 'logs'),
+      xcodebuild_formatter: '',
+      xcargs: "CURRENT_PROJECT_VERSION=#{build_number} DEVELOPMENT_TEAM=#{team_id} CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY='Apple Distribution' PROVISIONING_PROFILE_SPECIFIER='#{profile_name}'",
+      export_options: {
+        method: 'app-store-connect', signingStyle: 'manual', teamID: team_id,
+        provisioningProfiles: { BUNDLE_ID => profile_name }
+      }
+    )
+    upload_to_testflight(
+      api_key: key, ipa: ipa, app_identifier: BUNDLE_ID,
+      skip_waiting_for_build_processing: false,
+      wait_processing_interval: 20, wait_processing_timeout_duration: 600,
+      changelog: 'ペンギンゲーム専用アプリに整理しました。',
+      distribute_external: false, submit_beta_review: false
+    )
+    UI.success("Uploaded Penguin Slide build #{build_number}. Existing internal group settings are unchanged.")
+  end
+end
