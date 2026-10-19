@@ -29,6 +29,7 @@ final class PenguinStageData {
     }
 
     /// "STG2" 形式（ステージとキャラで共通）：先頭にJSON、続いて名前付きのメッシュ（位置・法線・UV・添字）。
+    /// JSONの "weights" に名前があるメッシュは、添字の後にリグの重み（頂点ごとに頭・腕の float×2）が続き、頂点色として持つ。
     static func load(_ name: String, in folder: String) -> (header: Data, geometries: [String: SCNGeometry])? {
         guard let url = Bundle.main.url(forResource: name, withExtension: "bin", subdirectory: folder),
               let data = try? Data(contentsOf: url), data.count > 12, data.prefix(4) == Data("STG2".utf8) else { return nil }
@@ -43,16 +44,28 @@ final class PenguinStageData {
             return data.subdata(in: offset..<(offset + length))
         }
         let header = chunk(Int(read(UInt32.self)))
+        struct Layout: Decodable { var weights: [String]? }
+        let weighted = Set((try? JSONDecoder().decode(Layout.self, from: header))?.weights ?? [])
         var result: [String: SCNGeometry] = [:]
         for _ in 0..<Int(read(UInt32.self)) {
             let name = String(decoding: chunk(Int(read(UInt16.self))), as: UTF8.self)
             let vertexCount = Int(read(UInt32.self)), indexCount = Int(read(UInt32.self))
             let positions = chunk(vertexCount * 12), normals = chunk(vertexCount * 12), uvs = chunk(vertexCount * 8), indices = chunk(indexCount * 4)
-            let sources = [
+            var sources = [
                 SCNGeometrySource(data: positions, semantic: .vertex, vectorCount: vertexCount, usesFloatComponents: true, componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: 12),
                 SCNGeometrySource(data: normals, semantic: .normal, vectorCount: vertexCount, usesFloatComponents: true, componentsPerVector: 3, bytesPerComponent: 4, dataOffset: 0, dataStride: 12),
                 SCNGeometrySource(data: uvs, semantic: .texcoord, vectorCount: vertexCount, usesFloatComponents: true, componentsPerVector: 2, bytesPerComponent: 4, dataOffset: 0, dataStride: 8),
             ]
+            if weighted.contains(name) {
+                let pairs = chunk(vertexCount * 8)
+                let colors: [SIMD4<Float>] = pairs.withUnsafeBytes { raw in
+                    (0..<vertexCount).map { i in
+                        SIMD4(raw.loadUnaligned(fromByteOffset: i * 8, as: Float.self), raw.loadUnaligned(fromByteOffset: i * 8 + 4, as: Float.self), 0, 1)
+                    }
+                }
+                sources.append(SCNGeometrySource(data: colors.withUnsafeBytes { Data($0) }, semantic: .color, vectorCount: vertexCount, usesFloatComponents: true,
+                                                 componentsPerVector: 4, bytesPerComponent: 4, dataOffset: 0, dataStride: 16))
+            }
             let element = SCNGeometryElement(data: indices, primitiveType: .triangles, primitiveCount: indexCount / 3, bytesPerIndex: 4)
             result[name] = SCNGeometry(sources: sources, elements: [element])
         }

@@ -131,7 +131,9 @@ enum PenguinRig {
         if let parts = cache[kind] { return parts }
         let file = PenguinAsset.geometries(kind.rawValue)
         guard let body = file["body"] else { return nil }
-        let parts = (weighted(body, setup(for: kind).weight), file.filter { $0.key != "body" })
+        // 重みはモデルに焼き込み済み（ci/bake-character.py）。無い古いモデルだけ位置の関数で付ける。
+        let rigged = body.sources(for: .color).isEmpty ? weighted(body, setup(for: kind).weight) : body
+        let parts = (rigged, file.filter { $0.key != "body" })
         cache[kind] = parts
         return parts
     }

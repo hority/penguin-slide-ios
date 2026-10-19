@@ -1,4 +1,4 @@
-# Blender (4.3, headless) step for the characters and sea creatures:
+# Blender (4.3, headless) step for the sea creatures (the four characters now use ci/bake-character.py):
 #   blender -b Design/Models/<name>.blend --python ci/bake-model.py -- <name> HelloFlight/Models
 # <name> is one of MODELS below (the editable masters as delivered, textures packed).
 # 1. Shrinks the packed 2K texture set (already baked onto the mesh) to what the game needs:
