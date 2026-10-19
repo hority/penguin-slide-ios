@@ -62,7 +62,7 @@ final class PenguinStageData {
     /// ステージ全体で1枚のテクスチャアトラスを共有する（4Kから縮小済み：色1024・法線1024・粗さ512）。
     static func makeMaterial(ao: String) -> SCNMaterial {
         func image(_ name: String, _ ext: String) -> UIImage? {
-            Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "Stage").flatMap { UIImage(contentsOfFile: $0.path) }
+            Bundle.main.url(forResource: name, withExtension: ext, subdirectory: "Stage").flatMap(PenguinAsset.texture)
         }
         let material = SCNMaterial()
         material.lightingModel = .physicallyBased
@@ -79,13 +79,25 @@ final class PenguinStageData {
 
 /// ci/bake-model.py が書き出したキャラと海の生き物（HelloFlight/Models/）。名前は "penguin", "whale" など。
 enum PenguinAsset {
+    /// テクスチャ画像。シミュレータのGPUは白黒PNG（1チャンネルのsRGB）を扱えず描画で落ちるので、シミュレータではカラーに描き直す。
+    static func texture(_ url: URL) -> UIImage? {
+        guard let image = UIImage(contentsOfFile: url.path) else { return nil }
+        #if targetEnvironment(simulator)
+        let format = UIGraphicsImageRendererFormat()
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: image.size, format: format).image { _ in image.draw(at: .zero) }
+        #else
+        return image
+        #endif
+    }
+
     static func geometries(_ name: String) -> [String: SCNGeometry] {
         PenguinStageData.load(name.capitalized, in: "Models")?.geometries ?? [:]
     }
 
     static func material(_ name: String) -> SCNMaterial {
         func image(_ suffix: String, _ ext: String) -> UIImage? {
-            Bundle.main.url(forResource: "\(name)_\(suffix)", withExtension: ext, subdirectory: "Models").flatMap { UIImage(contentsOfFile: $0.path) }
+            Bundle.main.url(forResource: "\(name)_\(suffix)", withExtension: ext, subdirectory: "Models").flatMap(texture)
         }
         let material = SCNMaterial()
         material.lightingModel = .physicallyBased
