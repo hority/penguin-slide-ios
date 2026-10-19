@@ -107,18 +107,20 @@ enum PenguinTextures {
         }
     }
 
-    /// 光る数字「×N」の文字面（透明地に白い文字、琥珀色の太い縁）。
+    /// 光る数字「×N」の文字面：白い文字に濃紺の太い縁、そのまわりに琥珀色のにじみ。雪の上でも海の上でも読める。
     static func countLabel(_ text: String) -> UIImage {
-        image(256, 128, opaque: false) { _, rect in
-            let font = UIFont(name: PenguinFonts.name, size: 96) ?? .systemFont(ofSize: 96, weight: .black)
+        image(256, 128, opaque: false) { cg, rect in
+            let font = UIFont(name: PenguinFonts.name, size: 92) ?? .systemFont(ofSize: 92, weight: .black)
             let style = NSMutableParagraphStyle()
             style.alignment = .center
-            let outline = NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: style, .foregroundColor: color(0xf0b03d),
-                                                                       .strokeColor: color(0xf0b03d), .strokeWidth: -24])
+            let outline = NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: style, .foregroundColor: color(0x101a36),
+                                                                       .strokeColor: color(0x101a36), .strokeWidth: -26])
             let fill = NSAttributedString(string: text, attributes: [.font: font, .paragraphStyle: style, .foregroundColor: UIColor.white])
             let height = fill.boundingRect(with: rect.size, options: [.usesLineFragmentOrigin], context: nil).height
             let box = CGRect(x: 0, y: (rect.height - height) / 2, width: rect.width, height: height)
+            cg.setShadow(offset: .zero, blur: 14, color: color(0xffc24a, 0.95).cgColor)
             outline.draw(in: box)
+            cg.setShadow(offset: .zero, blur: 0, color: nil)
             fill.draw(in: box)
         }
     }

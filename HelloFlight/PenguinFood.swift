@@ -56,7 +56,7 @@ enum PenguinFoodModel {
     }
 }
 
-/// 光る「×N」の数字。常にカメラを向き、発光でブルームがにじむ。ほかの物に隠れないよう最前面に描く。
+/// 光る「×N」の数字。常にカメラを向き、ほかの物に隠れないよう最前面に描く（光は文字面に描いたにじみ）。
 final class PenguinCountLabel {
     let node = SCNNode()
     private let material = SCNMaterial()
@@ -66,7 +66,6 @@ final class PenguinCountLabel {
         let plane = SCNPlane(width: CGFloat(height * 2), height: CGFloat(height))
         material.lightingModel = .constant
         material.diffuse.contents = UIColor.clear
-        material.emission.intensity = 1.6
         material.blendMode = .alpha
         material.writesToDepthBuffer = false
         material.readsFromDepthBuffer = false
@@ -82,7 +81,6 @@ final class PenguinCountLabel {
         shown = count
         let image = PenguinTextures.countLabel("×\(count)")
         material.diffuse.contents = image
-        material.emission.contents = image
     }
 }
 
@@ -90,13 +88,13 @@ final class PenguinCountLabel {
 /// 正解するたびに浮き氷から1つ飛んできて、大きな好物に吸い込まれて数が増える。
 final class PenguinPantry {
     /// 置き場所（島の面の高さ）。岩とすべり台を避けた平らな所の中央。
-    static let spot = SIMD3<Float>(0.4, 0.57, -2.3)
-    static let size: Float = 0.5
+    static let spot = SIMD3<Float>(0.4, 0.6, -2.3)
+    static let size: Float = 0.65
 
     let root = SCNNode()
     private var food: PenguinFood
     private var item = SCNNode()
-    private let label = PenguinCountLabel(height: 0.3)
+    private let label = PenguinCountLabel(height: 0.42)
     private var flights: [(node: SCNNode, from: SIMD3<Float>, time: Float)] = []
     /// 着いた数（表示している数）。
     private(set) var count = 0
@@ -105,7 +103,7 @@ final class PenguinPantry {
 
     init(food: PenguinFood) {
         self.food = food
-        label.node.simdPosition = Self.spot + SIMD3(0.42, 0.38, 0.1)
+        label.node.simdPosition = Self.spot + SIMD3(0.5, 0.5, 0.15)
         root.addChildNode(label.node)
         setFood(food)
     }
@@ -205,9 +203,8 @@ final class PenguinFeeder {
     }
 
     var heldPosition: SIMD3<Float>? { held?.simdPosition }
-    /// 運ぶ好物の大きさ。顔のアップではカメラが近いので小さめにする。
-    var closeUp = false
-    private var heldSize: Float { food.size * (closeUp ? 0.9 : 1.25) }
+    /// 運ぶ好物と浮かぶ好物の大きさ（カメラのすぐ前に置くので、どの画面でも同じ見た目の大きさ）。
+    private let heldSize: Float = 0.15
 
     func setFood(_ food: PenguinFood) {
         self.food = food
@@ -218,8 +215,8 @@ final class PenguinFeeder {
 
     /// 顔のアップで浮かぶ好物（1つ）と、その横の光る「×N」。
     private static let floatCount = 1
-    private var floatSize: Float { food.size }
-    private let label = PenguinCountLabel(height: 0.13)
+    private var floatSize: Float { heldSize }
+    private let label = PenguinCountLabel(height: 0.075)
     /// 集めた数が0なら浮かぶ好物も出さない。
     private var empty = false
 
@@ -292,11 +289,15 @@ final class PenguinFeeder {
     }
 
     /// mouth は口（食べる位置）、spots は浮かぶ好物の置き場所（画面の下の方、顔の手前）、count は集めた数。
+    /// カメラから見た右・上へのずらし（ラベルを好物の横に置く）。
+    var cameraRight = SIMD3<Float>(1, 0, 0), cameraUp = SIMD3<Float>(0, 1, 0)
+    private func world(right: Float, up: Float) -> SIMD3<Float> { cameraRight * right + cameraUp * up }
+
     func update(_ dt: Float, time: Float, mouth: SIMD3<Float>, spots: [SIMD3<Float>], count: Int) {
         label.set(count)
         empty = count == 0
         label.node.isHidden = floats.isEmpty || empty
-        if let spot = spots.first { label.node.simdPosition = spot + SIMD3(floatSize * 0.9 + 0.08, 0.04, 0) }
+        if let spot = spots.first { label.node.simdPosition = spot + world(right: floatSize * 0.6 + 0.07, up: 0.02) }
         sinceBite += dt
         if let held {
             held.simdPosition += (heldTarget - held.simdPosition) * min(1, dt * 14)

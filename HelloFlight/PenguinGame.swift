@@ -266,18 +266,18 @@ final class PenguinGame {
     }
 
     func dragMoved(to point: CGPoint) {
-        guard feeder.held != nil, let p = pointOnFeedPlane(point) else { return }
+        guard feeder.held != nil, let p = heldPoint(point) else { return }
         feeder.move(to: p)
         idleTime = 0
     }
 
-    /// キャラの口か体の近くで離したら食べる。ふだんの画面なら顔のアップに切り替える。
+    /// 運んでいる好物（指先の少し上）が画面上でキャラの口か体に重なったら食べる。ふだんの画面なら顔のアップに切り替える。
     func dragEnded(at point: CGPoint) {
-        guard let held = feeder.heldPosition else { return }
-        let p = pointOnFeedPlane(point) ?? held
-        // 顔のアップでは浮かぶ好物が口の近くにあるので、口のすぐそばで離したときだけ食べる。
-        let eat = canFeed && (hud.feeding ? simd_distance(p, mouthPosition) < 0.2
-                                          : min(simd_distance(p, mouthPosition), simd_distance(p, penguinPosition)) < 0.6)
+        guard feeder.held != nil else { return }
+        let tip = CGPoint(x: point.x, y: point.y - Self.heldLift)
+        func near(_ p: SIMD3<Float>, _ radius: CGFloat) -> Bool { project(p).map { hypot($0.x - tip.x, $0.y - tip.y) < radius } ?? false }
+        let radius = max(70, viewSize.width * (hud.feeding ? 0.2 : 0.16))
+        let eat = canFeed && (near(mouthPosition, radius) || (!hud.feeding && near(penguinPosition, radius)))
         feeder.release(eat: eat)
         if eat, !hud.feeding {
             hud.feeding = true
@@ -317,13 +317,21 @@ final class PenguinGame {
         return middle + world.penguin.root.simdOrientation.act(SIMD3(0, -0.09, 0.07))
     }
 
-    /// 指の位置を、キャラの口を通りカメラに向いた面へ写す（運んでいる好物の位置）。
-    private func pointOnFeedPlane(_ point: CGPoint) -> SIMD3<Float>? { pointOnPlane(point, through: mouthPosition) }
+    /// 運ぶ好物と浮かぶ好物は、カメラのすぐ前（1.2m）の面に置く。どの画面でも同じ大きさに見え、島や台に埋もれない。
+    private static let heldDepth: Float = 1.2
+    /// 運ぶ好物は指先の少し上に出す（指に隠れないように）。
+    private static let heldLift: CGFloat = 56
 
-    /// アップで好物を浮かべる場所：画面の下の方の中央（顔の少し手前）。画面の縦横比によらず指が届く。
+    private var nearPlane: SIMD3<Float> { world.cameraNode.simdWorldPosition + world.cameraNode.simdWorldFront * Self.heldDepth }
+
+    private func heldPoint(_ point: CGPoint) -> SIMD3<Float>? {
+        pointOnPlane(CGPoint(x: point.x, y: point.y - Self.heldLift), through: nearPlane)
+    }
+
+    /// アップで好物を浮かべる場所：画面の下寄りの中央。画面の縦横比によらず指が届く。
     private func floatSpots() -> [SIMD3<Float>] {
-        let through = mouthPosition - world.cameraNode.simdWorldFront * 0.2
-        return [CGPoint(x: 0.42, y: 0.8)].compactMap { spot in
+        let through = nearPlane
+        return [CGPoint(x: 0.44, y: 0.7)].compactMap { spot in
             pointOnPlane(CGPoint(x: spot.x * viewSize.width, y: spot.y * viewSize.height), through: through)
         }
     }
@@ -410,7 +418,8 @@ final class PenguinGame {
         updateCamera(dt)
         updateShading()
         pantry.update(dt, time: time)
-        feeder.closeUp = hud.feeding
+        feeder.cameraRight = world.cameraNode.simdWorldRight
+        feeder.cameraUp = world.cameraNode.simdWorldUp
         feeder.update(dt, time: time, mouth: mouthPosition, spots: hud.feeding ? floatSpots() : [], count: pantry.count)
         updateTutorial()
         critters.update(dt)
