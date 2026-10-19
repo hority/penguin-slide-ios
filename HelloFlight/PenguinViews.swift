@@ -69,8 +69,10 @@ struct PenguinRootView: View {
                 .allowsHitTesting(false)
             if hud.screen == .title {
                 PenguinTitleView(game: game, showSettings: $showSettings)
+                    .modifier(PenguinLargeScreenScale())
             } else {
                 PenguinPlayHUD(game: game)
+                    .modifier(PenguinLargeScreenScale())
                 if let step = hud.tutorial, step != .back {
                     PenguinTutorialView(step: step, food: hud.character.food, from: hud.tutorialFrom, to: hud.tutorialTo)
                         .ignoresSafeArea()
@@ -82,6 +84,20 @@ struct PenguinRootView: View {
         .persistentSystemOverlays(.hidden)
         .onAppear { game.audio.start() }
         .sheet(isPresented: $showSettings) { PenguinSettingsView(game: game) }
+    }
+}
+
+/// iPadなど大きな画面では、iPhone向けの大きさで作ったボタンやカードをまとめて拡大する
+/// （iPhoneの大きさで並べてから拡大するので配置は崩れない。3Dの画面とその上の文字はそのまま）。
+private struct PenguinLargeScreenScale: ViewModifier {
+    func body(content: Content) -> some View {
+        GeometryReader { geometry in
+            let scale = min(1.6, max(1, min(geometry.size.width / 430, geometry.size.height / 900)))
+            content
+                .frame(width: geometry.size.width / scale, height: geometry.size.height / scale)
+                .scaleEffect(scale)
+                .frame(width: geometry.size.width, height: geometry.size.height)
+        }
     }
 }
 
