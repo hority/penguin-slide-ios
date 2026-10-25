@@ -17,9 +17,9 @@ struct PenguinFood {
 extension PenguinCharacter {
     var food: PenguinFood {
         switch self {
-        case .penguin: PenguinFood(asset: "bluefish", name: "おさかな", counter: "ひき", howMany: "なんびき", size: 0.25)
+        case .penguin, .dolphinchibi, .orca: PenguinFood(asset: "bluefish", name: "おさかな", counter: "ひき", howMany: "なんびき", size: 0.25)
         case .octopus: PenguinFood(asset: "sausage", name: "ウインナー", counter: "こ", howMany: "なんこ", size: 0.22)
-        case .ghost: PenguinFood(asset: "pumpkin", name: "かぼちゃ", counter: "こ", howMany: "なんこ", size: 0.22)
+        case .ghost, .rabbit, .rhino: PenguinFood(asset: "pumpkin", name: "かぼちゃ", counter: "こ", howMany: "なんこ", size: 0.22)
         case .unicorn: PenguinFood(asset: "lollipop", name: "ロリポップ", counter: "こ", howMany: "なんこ", size: 0.26)
         }
     }
@@ -34,6 +34,10 @@ extension PenguinCharacter {
         case .octopus: SIMD3(0, 0.25, 0.28)
         case .ghost: SIMD3(0, 0.315, 0.27)
         case .unicorn: SIMD3(0, 0.42, 0.21)
+        case .rabbit: SIMD3(0, 0.35, 0.22)
+        case .dolphinchibi: SIMD3(0, 0.37, 0.24)
+        case .rhino: SIMD3(0, 0.34, 0.24)
+        case .orca: SIMD3(0, 0.39, 0.23)
         }
     }
 }

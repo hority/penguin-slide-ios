@@ -151,6 +151,7 @@ enum PenguinQuiz {
 /// あそぶキャラ。タイトル画面で選び、次回も同じキャラで始める。
 enum PenguinCharacter: String, CaseIterable, Identifiable {
     case penguin, octopus, ghost, unicorn
+    case rabbit, dolphinchibi, rhino, orca
     var id: String { rawValue }
 
     var name: String {
@@ -159,9 +160,13 @@ enum PenguinCharacter: String, CaseIterable, Identifiable {
         case .octopus: "タコ"
         case .ghost: "オバケ"
         case .unicorn: "ユニコーン"
+        case .rabbit: "ウサギ"
+        case .dolphinchibi: "イルカ"
+        case .rhino: "サイ"
+        case .orca: "シャチ"
         }
     }
 
     /// 選択ボタンに使う同梱イラスト。
-    var illustration: String { rawValue }
+    var illustration: String { self == .rabbit ? "rabbitchibi" : rawValue }
 }

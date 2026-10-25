@@ -134,7 +134,8 @@ private struct PenguinTitleView: View {
             // 上の空いた部分には、カメラが寄ったキャラが大きく映る。
             VStack(spacing: 10) {
                 Text("だれと あそぶ？").font(.penguin(20)).foregroundStyle(Color.penguinInk)
-                HStack(spacing: 12) {
+                // 8キャラを4列にして、小さいiPhoneでも全員を選べるようにする。
+                LazyVGrid(columns: Array(repeating: GridItem(.fixed(66), spacing: 12), count: 4), spacing: 12) {
                     ForEach(PenguinCharacter.allCases) { character in
                         let selected = game.hud.character == character
                         Button { game.selectCharacter(character) } label: {
@@ -193,14 +194,14 @@ struct PenguinLoadingView: View {
     @State private var hop = false
 
     var body: some View {
-        let character = UserDefaults.standard.string(forKey: "penguin.character") ?? PenguinCharacter.penguin.rawValue
+        let character = UserDefaults.standard.string(forKey: "penguin.character").flatMap(PenguinCharacter.init(rawValue:)) ?? .penguin
         VStack(spacing: 14) {
             if let logo = PenguinArt.image("title") {
                 Image(uiImage: logo).resizable().interpolation(.high).scaledToFit()
                     .frame(maxWidth: 360, maxHeight: 200)
                     .padding(.horizontal, 16)
             }
-            PenguinArt.view(character, size: 96)
+            PenguinArt.view(character.illustration, size: 96)
                 .offset(y: hop ? -14 : 0)
                 .animation(.easeInOut(duration: 0.45).repeatForever(autoreverses: true), value: hop)
             Text("じゅんびちゅう…").font(.penguin(20)).foregroundStyle(Color.penguinInk)

@@ -11,3 +11,5 @@ This private staging snapshot preserves all game runtime assets. Public redistri
 - `Assets.xcassets/AppIcon.appiconset/AppIcon.png`: retained unchanged; confirm its provenance before publication.
 
 No blanket open-source license is included. Confirm ownership and intended licensing before making this repository public. No certificates, private keys, provisioning profiles, original Git history or private session links are included in this source snapshot.
+
+- `Models/Rabbit.bin`, `Dolphinchibi.bin`, `Rhino.bin`, `Orca.bin`, their base/normal/roughness/blink maps and corresponding selection illustrations: derived from four private Tripo H3.1 textured outputs matching the owner's supplied reference. See `TRIPO-CHARACTERS.md` for original Library identities, conversion, animation, and verification limits. Existing scenery dolphin assets are unchanged. No new public redistribution permission is implied.

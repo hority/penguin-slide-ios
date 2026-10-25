@@ -67,7 +67,7 @@ platform :ios do
       api_key: key, ipa: ipa, app_identifier: BUNDLE_ID,
       skip_waiting_for_build_processing: false,
       wait_processing_interval: 20, wait_processing_timeout_duration: 600,
-      changelog: 'ペンギンゲーム専用アプリに整理しました。',
+      changelog: 'ウサギ・イルカ・サイ・シャチの4キャラクターを追加しました。キャラクター選択を2段にして、まばたきとごはんの位置を調整しました。',
       distribute_external: false, submit_beta_review: false
     )
     UI.success("Uploaded Penguin Slide build #{build_number}. Existing internal group settings are unchanged.")
