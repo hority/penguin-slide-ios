@@ -20,9 +20,9 @@ for name in ['rabbit','dolphinchibi','rhino','orca']:
   assert np.linalg.norm(np.cross(p[ix[:,1]]-p[ix[:,0]],p[ix[:,2]]-p[ix[:,0]]),axis=1).min()>1e-12
   if group in header.get('weights',[]):o+=v*8
   triangles+=i//3;vertices+=v;positions.append(p)
- assert o==len(d) and 'body' in groups and 6000<=triangles<=8800
+ assert o==len(d) and set(groups)=={'body','eyeL','eyeR'} and 6000<=triangles<=9300
  p=np.concatenate(positions);assert abs(p[:,1].min())<1e-5 and .69<=p[:,1].max()<=.79
- for suffix,size in [('base.jpg',1024),('blink.jpg',1024),('normal.png',512),('rough.png',512)]:
+ for suffix,size in [('base.jpg',1024),('normal.png',512),('rough.png',512)]:
   im=Image.open(root/'Models'/(name+'_'+suffix));im.load();assert im.size==(size,size)
  im=Image.open(root/'Illustrations'/(('rabbitchibi' if name=='rabbit' else name)+'.png'));im.load();assert im.mode=='RGBA' and im.getchannel('A').getextrema()==(0,255)
  reports.append(dict(name=name,triangles=triangles,vertices=vertices,mesh_bytes=len(d),height=float(p[:,1].max())))

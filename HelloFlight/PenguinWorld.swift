@@ -16,8 +16,6 @@ final class PenguinModel {
     private(set) var eyes: [SCNNode] = []
     /// 体を曲げるシェーダーを持つ材質。
     private var rig: SCNMaterial?
-    private var blinkImages: (open: UIImage, closed: UIImage)?
-    private var eyesClosed = false
 
     private let rim: String
 
@@ -35,8 +33,6 @@ final class PenguinModel {
         for node in [body, head, leftFlipper, rightFlipper] { node.childNodes.forEach { $0.removeFromParentNode() } }
         eyes = []
         rig = nil
-        blinkImages = nil
-        eyesClosed = false
         let setup = PenguinRig.setup(for: kind)
         head.simdPosition = setup.headPivot
         body.addChildNode(head)
@@ -46,12 +42,7 @@ final class PenguinModel {
         }
         guard let parts = PenguinRig.parts(for: kind) else { return }
         let material = PenguinRig.material(kind.rawValue, rim: rim)
-        let bodyNode = SCNNode(geometry: parts.body)
-        body.addChildNode(bodyNode)
-        if let url = Bundle.main.url(forResource: kind.rawValue + "_blink", withExtension: "jpg", subdirectory: "Models"),
-           let closed = UIImage(contentsOfFile: url.path), let open = material.diffuse.contents as? UIImage {
-            blinkImages = (open, closed)
-        }
+        body.addChildNode(SCNNode(geometry: parts.body))
         parts.body.firstMaterial = material
         rig = material
         let still = material.copy() as! SCNMaterial
@@ -73,14 +64,6 @@ final class PenguinModel {
     /// まばたき（0で開き、1で閉じる）。
     func setBlink(_ amount: Float) {
         for eye in eyes { eye.simdScale = SIMD3(1, max(0.08, 1 - amount), 1) }
-        if let images = blinkImages {
-            let closed = amount >= 0.5
-            if closed != eyesClosed {
-                rig?.diffuse.contents = closed ? images.closed : images.open
-                rig?.normal.intensity = closed ? 0 : 0.35
-                eyesClosed = closed
-            }
-        }
     }
 
     /// 頭・手の節点の向きを体の頂点シェーダーへ渡す（毎フレーム、向きを決めたあとに呼ぶ）。
@@ -209,7 +192,7 @@ enum PenguinRig {
     /// 曲げるシェーダー付きの材質。
     static func material(_ name: String, rim: String? = nil) -> SCNMaterial {
         let material = PenguinAsset.material(name)
-        if ["rabbit", "dolphinchibi", "rhino", "orca"].contains(name) { material.normal.intensity = 0.35 }
+        if ["rabbit", "dolphinchibi", "rhino", "orca"].contains(name) { material.normal.intensity = 0 }
         material.shaderModifiers = rim.map { [.geometry: poseModifier, .fragment: $0] } ?? [.geometry: poseModifier]
         let identity = NSValue(scnMatrix4: SCNMatrix4Identity)
         for key in ["poseHead", "poseLeft", "poseRight"] { material.setValue(identity, forKey: key) }
